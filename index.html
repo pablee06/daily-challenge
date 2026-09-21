@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ultraschall Live Dashboard</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(145deg, #0f172a, #1e293b);
+      color: #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Verbesserter animierter Hintergrund */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: 
+        radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(34, 211, 238, 0.1) 0%, transparent 50%);
+      animation: pulseBackground 8s ease-in-out infinite;
+      z-index: -1;
+    }
+
+    @keyframes pulseBackground {
+      0%, 100% { transform: scale(1); opacity: 0.5; }
+      50% { transform: scale(1.2); opacity: 0.8; }
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+      position: relative;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      color: #38bdf8;
+      margin-bottom: 0.5rem;
+      text-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+      transform: translateY(0);
+      transition: transform 0.3s ease;
+      position: relative;
+      display: inline-block;
+    }
+
+    h1::after {
+      content: '';
+      position: absolute;
+      bottom: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+    }
+
+    h1:hover {
+      transform: translateY(-5px);
+    }
+
+    #liveDot {
+      display: inline-block;
+      margin-left: 8px;
+      width: 12px;
+      height: 12px;
+      background: #22c55e;
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.5); opacity: 0.4; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .dashboard-container {
+      width: 100%;
+      max-width: 1200px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      padding: 1rem;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.15);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(56, 189, 248, 0.1);
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(45deg, transparent, rgba(56, 189, 248, 0.1), transparent);
+      transform: translateX(-100%);
+      transition: transform 0.6s;
+    }
+
+    .card:hover {
+      transform: translateY(-5px) scale(1.02);
+      box-shadow: 0 10px 30px rgba(56, 189, 248, 0.2);
+    }
+
+    .card:hover::before {
+      transform: translateX(100%);
+    }
+
+    .measurement-card {
+      text-align: center;
+    }
+
+    #distanceValue {
+      font-size: 4rem;
+      font-weight: 700;
+      color: #7dd3fc;
+      text-shadow: 0 0 10px rgba(125, 211, 252, 0.3);
+      transition: transform 0.3s ease;
+      margin: 1rem 0;
+    }
+
+    #distanceValue:hover {
+      transform: scale(1.05);
+    }
+
+    .unit {
+      font-size: 1.5rem;
+      color: #94a3b8;
+      margin-left: 0.5rem;
+    }
+
+    #barContainer {
+      background: #475569;
+      height: 20px;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 1rem;
+      position: relative;
+    }
+
+    #distanceBar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #22d3ee, #2563eb);
+      transition: width 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #distanceBar::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      animation: shimmer 2s infinite;
+    }
+
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    .chart-card {
+      grid-column: 1 / -1;
+    }
+
+    canvas {
+      width: 100%;
+      max-height: 300px;
+      transition: transform 0.3s ease;
+    }
+
+    canvas:hover {
+      transform: scale(1.02);
+    }
+
+    .stats-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .stat-item {
+      text-align: center;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      border: 1px solid rgba(56, 189, 248, 0.1);
+    }
+
+    .stat-label {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+      font-size: 1.2rem;
+      color: #38bdf8;
+      font-weight: 600;
+    }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.8rem;
+      color: #94a3b8;
+      opacity: 0.8;
+      transition: opacity 0.3s ease;
+      text-align: center;
+    }
+
+    footer:hover {
+      opacity: 1;
+    }
+
+    .achievement-badge {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(56, 189, 248, 0.1);
+      border: 2px solid #38bdf8;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      transform: scale(0);
+      opacity: 0;
+      z-index: 1000;
+    }
+
+    .achievement-badge.show {
+      transform: scale(1);
+      opacity: 1;
+    }
+
+    .achievement-badge:hover {
+      transform: scale(1.1);
+      background: rgba(56, 189, 248, 0.2);
+    }
+
+    @media (max-width: 768px) {
+      .dashboard-container {
+        grid-template-columns: 1fr;
+      }
+      
+      h1 {
+        font-size: 2rem;
+      }
+      
+      #distanceValue {
+        font-size: 3rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Ultraschall Dashboard <span id="liveDot" title="Live-Status"></span></h1>
+  </div>
+
+  <div class="dashboard-container">
+    <div class="card measurement-card">
+      <div id="distanceValue">--<span class="unit">cm</span></div>
+      <div id="barContainer">
+        <div id="distanceBar"></div>
+      </div>
+      <div class="stats-container">
+        <div class="stat-item">
+          <div class="stat-label">Min. Distanz</div>
+          <div class="stat-value" id="minDistance">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Max. Distanz</div>
+          <div class="stat-value" id="maxDistance">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Durchschnitt</div>
+          <div class="stat-value" id="avgDistance">--</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card chart-card">
+      <canvas id="distanceChart"></canvas>
+    </div>
+  </div>
+
+  <footer>© ESP8266 Entfernungsmesser – Echtzeit & Visualisiert</footer>
+
+  <div class="achievement-badge" id="achievementBadge" title="Erfolge">
+    🏆
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const maxDistance = 400;
+    const minDistance = 2;
+    let achievements = {
+      stableMeasurement: false,
+      maxDistance: false,
+      minDistance: false
+    };
+
+    const distanceValue = document.getElementById('distanceValue');
+    const distanceBar = document.getElementById('distanceBar');
+    const achievementBadge = document.getElementById('achievementBadge');
+    const minDistanceValue = document.getElementById('minDistance');
+    const maxDistanceValue = document.getElementById('maxDistance');
+    const avgDistanceValue = document.getElementById('avgDistance');
+
+    let history = [];
+    let stableCount = 0;
+    let lastDistance = null;
+
+    // Chart-Konfiguration
+    const ctx = document.getElementById('distanceChart').getContext('2d');
+    const chartData = {
+      labels: Array(50).fill(''),
+      datasets: [{
+        label: 'Entfernung (cm)',
+        data: Array(50).fill(null),
+        backgroundColor: 'rgba(56,189,248,0.2)',
+        borderColor: '#38bdf8',
+        borderWidth: 2,
+        tension: 0.4,
+        fill: true
+      }]
+    };
+
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: chartData,
+      options: {
+        responsive: true,
+        animation: {
+          duration: 750,
+          easing: 'easeInOutQuart'
+        },
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        scales: {
+          y: {
+            min: 0,
+            max: maxDistance,
+            ticks: { color: '#94a3b8' },
+            grid: { color: '#334155' }
+          },
+          x: {
+            ticks: { display: false },
+            grid: { color: '#334155' }
+          }
+        },
+        plugins: {
+          legend: { labels: { color: '#cbd5e1' } },
+          tooltip: {
+            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+            titleColor: '#38bdf8',
+            bodyColor: '#e2e8f0',
+            borderColor: '#38bdf8',
+            borderWidth: 1
+          }
+        }
+      }
+    });
+
+    function updateStats(history) {
+      if (history.length > 0) {
+        const validValues = history.filter(v => v !== null);
+        if (validValues.length > 0) {
+          minDistanceValue.textContent = Math.min(...validValues).toFixed(1);
+          maxDistanceValue.textContent = Math.max(...validValues).toFixed(1);
+          avgDistanceValue.textContent = (validValues.reduce((a, b) => a + b, 0) / validValues.length).toFixed(1);
+        }
+      }
+    }
+
+    function checkAchievements(distance) {
+      if (distance !== null && lastDistance !== null) {
+        if (Math.abs(distance - lastDistance) < 1) {
+          stableCount++;
+          if (stableCount >= 5 && !achievements.stableMeasurement) {
+            achievements.stableMeasurement = true;
+            showAchievement('Stabile Messung! 🎯');
+          }
+        } else {
+          stableCount = 0;
+        }
+      }
+
+      if (distance >= maxDistance * 0.95 && !achievements.maxDistance) {
+        achievements.maxDistance = true;
+        showAchievement('Maximale Reichweite! 🌟');
+      }
+
+      if (distance <= minDistance * 1.1 && !achievements.minDistance) {
+        achievements.minDistance = true;
+        showAchievement('Minimale Distanz! 🎯');
+      }
+
+      lastDistance = distance;
+    }
+
+    function showAchievement(message) {
+      achievementBadge.classList.add('show');
+      setTimeout(() => {
+        achievementBadge.classList.remove('show');
+      }, 3000);
+    }
+
+    function updateDisplay(distance) {
+      if (distance === null) {
+        distanceValue.innerHTML = '--<span class="unit">cm</span>';
+        distanceBar.style.width = '0%';
+        return;
+      }
+
+      distanceValue.innerHTML = `${distance.toFixed(1)}<span class="unit">cm</span>`;
+      
+      let pct = Math.min(distance, maxDistance) / maxDistance * 100;
+      distanceBar.style.width = `${pct}%`;
+
+      if (history.length >= 50) history.shift();
+      history.push(distance);
+      chart.data.datasets[0].data = [...history];
+      chart.update('none');
+
+      updateStats(history);
+      checkAchievements(distance);
+    }
+
+    async function fetchData() {
+      try {
+        const res = await fetch('/distance');
+        const json = await res.json();
+
+        if ('distance_cm' in json) {
+          updateDisplay(json.distance_cm);
+        } else {
+          updateDisplay(null);
+        }
+      } catch (e) {
+        updateDisplay(null);
+      }
+    }
+
+    // Parallax-Effekt für den Hintergrund
+    document.addEventListener('mousemove', (e) => {
+      const moveX = (e.clientX - window.innerWidth / 2) * 0.01;
+      const moveY = (e.clientY - window.innerHeight / 2) * 0.01;
+      document.body.style.backgroundPosition = `${moveX}px ${moveY}px`;
+    });
+
+    setInterval(fetchData, 500);
+    fetchData();
+  </script>
+</body>
+</html>
+
