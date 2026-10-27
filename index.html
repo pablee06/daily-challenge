@@ -210,7 +210,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
       <div class="onboard-title">DAILY <span>CHALLENGE</span></div>
       <div class="loading-spinner" style="margin:30px auto 16px;"></div>
       <div class="onboard-sub" style="margin:0;">Lädt…</div>
-      <div id="appVersionTag" style="font-size:11px; color:var(--text-faint); margin-top:18px;">Build 1</div>
+      <div id="appVersionTag" style="font-size:11px; color:var(--text-faint); margin-top:18px;">Build 2</div>
     </div>
   </div>
 </div>
@@ -220,7 +220,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
 <script>
 // Bei jeder inhaltlichen Änderung an dieser Datei hochzählen — erscheint klein
 // im Ladebildschirm, damit sofort sichtbar ist, ob ein neuer Stand live ist.
-const APP_VERSION = 'Build 1';
+const APP_VERSION = 'Build 2';
 (() => { const t = document.getElementById('appVersionTag'); if(t) t.textContent = APP_VERSION; })();
 
 /* =========================================================
@@ -2571,7 +2571,9 @@ function renderPunishmentSection(){
 
 async function boot(){
   if(!identity){ renderOnboarding(); return; }
-  renderShell();
+  // Ladebildschirm bleibt bewusst stehen, bis die Daten wirklich da sind —
+  // renderShell() (Header/Tabs/leere Panels) kommt erst direkt vor render(),
+  // damit niemand ein halb-leeres Grundgerüst zu sehen bekommt.
   await loadState();
   if(!S){
     await new Promise(r => setTimeout(r, 1000));
@@ -2590,6 +2592,7 @@ async function boot(){
     document.getElementById('retryBoot').onclick = () => location.reload();
     return;
   }
+  renderShell();
   render();
   if(isSupabase()) setupSupabaseRealtime();
   await maybeShowTutorial();
