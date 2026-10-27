@@ -210,6 +210,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
       <div class="onboard-title">DAILY <span>CHALLENGE</span></div>
       <div class="loading-spinner" style="margin:30px auto 16px;"></div>
       <div class="onboard-sub" style="margin:0;">Lädt…</div>
+      <div id="appVersionTag" style="font-size:11px; color:var(--text-faint); margin-top:18px;">Build 1</div>
     </div>
   </div>
 </div>
@@ -217,6 +218,11 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
+// Bei jeder inhaltlichen Änderung an dieser Datei hochzählen — erscheint klein
+// im Ladebildschirm, damit sofort sichtbar ist, ob ein neuer Stand live ist.
+const APP_VERSION = 'Build 1';
+(() => { const t = document.getElementById('appVersionTag'); if(t) t.textContent = APP_VERSION; })();
+
 /* =========================================================
    DAILY CHALLENGE — Multiplayer-Probeversion
    Echte Mitspieler statt Bots. Läuft komplett über den
