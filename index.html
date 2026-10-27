@@ -12,6 +12,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Daily Challenge">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://tasqaanfdbdrvibeadfs.supabase.co">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -50,6 +53,7 @@ header{position:sticky; top:0; z-index:20; background:var(--bg); border-bottom:1
 .countdown-pill b{color:var(--accent); font-family:var(--font-display); letter-spacing:0.3px;}
 .refresh-btn{background:none; border:none; color:var(--text-faint); font-size:15px; cursor:pointer; padding:4px 6px;}
 .refresh-btn.spin{animation:spin 0.7s linear;}
+.loading-spinner{width:34px; height:34px; border-radius:50%; border:3px solid var(--paper-edge); border-top-color:var(--accent); animation:spin 0.8s linear infinite; margin:0 auto;}
 @keyframes spin{to{transform:rotate(360deg);}}
 
 .tabs{display:flex; justify-content:space-around; gap:2px; max-width:640px; margin:0 auto 22px; padding:0; border-bottom:1px solid var(--paper-edge); width:100%;}
@@ -200,7 +204,15 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
 </head>
 <body>
 
-<div id="app"></div>
+<div id="app">
+  <div class="onboard">
+    <div class="onboard-card" style="text-align:center;">
+      <div class="onboard-title">DAILY <span>CHALLENGE</span></div>
+      <div class="loading-spinner" style="margin:30px auto 16px;"></div>
+      <div class="onboard-sub" style="margin:0;">Lädt…</div>
+    </div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -827,7 +839,17 @@ async function loadState(){
     catch(e){ console.error('remote fetch failed', e); showToast('Cloud-Speicher gerade nicht erreichbar'); return; }
   }
   const code = isRemote() ? remoteBlobId : displayCode;
-  const startDate = (await sGet(`dc:${code}:daystart`, true)) || localDateStr(new Date());
+
+  // Runde 1: alles abfragen, was voneinander unabhängig ist (kein Wert hängt
+  // vom Ergebnis eines anderen ab) — parallel statt nacheinander.
+  const [startDateRaw, memberKeys, poolKeys, reviewKeys, logKeysRaw] = await Promise.all([
+    sGet(`dc:${code}:daystart`, true),
+    sList(`dc:${code}:member:`, true),
+    sList(`dc:${code}:pool:`, true),
+    sList(`dc:${code}:review:`, true),
+    sList(`dc:${code}:log:`, true),
+  ]);
+  const startDate = startDateRaw || localDateStr(new Date());
   const {day, cycle} = computeDayCycle(startDate);
 
   const lastSeenKey = `dc:${code}:lastseenday`;
@@ -839,43 +861,45 @@ async function loadState(){
     await sSet(lastSeenKey, day, false);
   }
 
-  const memberKeys = await sList(`dc:${code}:member:`, true);
-  const memberVals = await Promise.all(memberKeys.map(k => sGet(k, true)));
+  // Runde 2: hängt nur von "day" bzw. den Key-Listen aus Runde 1 ab.
+  const [memberVals, poolVals, reviewVals, todayAssignKeys] = await Promise.all([
+    Promise.all(memberKeys.map(k => sGet(k, true))),
+    Promise.all(poolKeys.map(k => sGet(k, true))),
+    Promise.all(reviewKeys.map(k => sGet(k, true))),
+    sList(`dc:${code}:assign:${day}:`, true),
+  ]);
   const players = memberKeys.map((k,i) => memberVals[i] ? {id: suffix(k, `dc:${code}:member:`), ...memberVals[i]} : null).filter(Boolean);
+  const pool = poolKeys.map((k,i) => poolVals[i] ? {id: suffix(k, `dc:${code}:pool:`), ...poolVals[i]} : null).filter(Boolean);
+  const reviews = reviewKeys.map((k,i) => reviewVals[i] ? {id: suffix(k, `dc:${code}:review:`), ...reviewVals[i]} : null).filter(Boolean);
 
+  // muss NACH den Mitgliedern und VOR dem Title-Reload laufen (kann neue
+  // Titel/eine Strafe schreiben, die wir gleich danach mit lesen wollen)
   await processWeeklyTitles(code, day, players);
 
-  const titleKeys = await sList(`dc:${code}:title:`, true);
+  const weekNum = Math.floor((day - 1) / 7) + 1;
+  const [titleKeys, punishInfo, todayAssignVals] = await Promise.all([
+    sList(`dc:${code}:title:`, true),
+    sGet(`dc:${code}:punishment:${weekNum}`, true),
+    Promise.all(todayAssignKeys.map(k => sGet(k, true))),
+  ]);
   const titleVals = await Promise.all(titleKeys.map(k => sGet(k, true)));
   const titles = {};
   titleKeys.forEach((k,i) => { if(titleVals[i]) titles[suffix(k, `dc:${code}:title:`)] = titleVals[i]; });
   players.forEach(p => { p.title = titles[p.id] || null; });
 
-  const weekNum = Math.floor((day - 1) / 7) + 1;
-  const punishInfo = await sGet(`dc:${code}:punishment:${weekNum}`, true);
   let punishment = null;
   if(punishInfo){
     const propKeys = await sList(`dc:${code}:punishprop:${weekNum}:`, true);
     const propVals = await Promise.all(propKeys.map(k => sGet(k, true)));
     const proposals = propKeys.map((k,i) => propVals[i] ? {id: suffix(k, `dc:${code}:punishprop:${weekNum}:`), ...propVals[i]} : null).filter(Boolean);
     const votes = {};
-    for(const p of proposals){
+    await Promise.all(proposals.map(async p => {
       const voteKeys = await sList(`dc:${code}:punishvote:${weekNum}:${p.id}:`, true);
       votes[p.id] = voteKeys.map(k => suffix(k, `dc:${code}:punishvote:${weekNum}:${p.id}:`));
-    }
+    }));
     punishment = {weekNum, targetId: punishInfo.targetId, proposals, votes};
   }
 
-  const poolKeys = await sList(`dc:${code}:pool:`, true);
-  const poolVals = await Promise.all(poolKeys.map(k => sGet(k, true)));
-  const pool = poolKeys.map((k,i) => poolVals[i] ? {id: suffix(k, `dc:${code}:pool:`), ...poolVals[i]} : null).filter(Boolean);
-
-  const reviewKeys = await sList(`dc:${code}:review:`, true);
-  const reviewVals = await Promise.all(reviewKeys.map(k => sGet(k, true)));
-  const reviews = reviewKeys.map((k,i) => reviewVals[i] ? {id: suffix(k, `dc:${code}:review:`), ...reviewVals[i]} : null).filter(Boolean);
-
-  const todayAssignKeys = await sList(`dc:${code}:assign:${day}:`, true);
-  const todayAssignVals = await Promise.all(todayAssignKeys.map(k => sGet(k, true)));
   const todayAssignments = {};
   todayAssignKeys.forEach((k,i) => { if(todayAssignVals[i]) todayAssignments[suffix(k, `dc:${code}:assign:${day}:`)] = todayAssignVals[i]; });
 
@@ -888,17 +912,15 @@ async function loadState(){
     a.votes = votes;
   }));
 
-  const logKeys = (await sList(`dc:${code}:log:`, true)).sort().reverse().slice(0,12);
+  const logKeys = logKeysRaw.sort().reverse().slice(0,12);
   const logVals = await Promise.all(logKeys.map(async k => {
     const v = await sGet(k, true);
     if(!v) return null;
     const id = suffix(k, `dc:${code}:log:`);
     const reactionKeys = await sList(`dc:${code}:reaction:${id}:`, true);
+    const reactionVals = await Promise.all(reactionKeys.map(rk => sGet(rk, true)));
     const reactions = {};
-    for(const rk of reactionKeys){
-      const rv = await sGet(rk, true);
-      if(rv) reactions[suffix(rk, `dc:${code}:reaction:${id}:`)] = rv;
-    }
+    reactionKeys.forEach((rk,i) => { if(reactionVals[i]) reactions[suffix(rk, `dc:${code}:reaction:${id}:`)] = reactionVals[i]; });
     return {...v, id, reactions};
   }));
   const log = logVals.filter(Boolean);
@@ -2040,7 +2062,7 @@ function renderDashboard(){
   const a = S.todayAssignments[me];
   let ticketHtml = '';
   if(!a){
-    ticketHtml = `<div class="empty-state"><span class="ic">⏳</span>Lädt deine heutige Aufgabe…</div>`;
+    ticketHtml = `<div class="empty-state"><div class="loading-spinner" style="margin-bottom:10px;"></div>Lädt deine heutige Aufgabe…</div>`;
   } else {
     const t = a.task;
     let bottom = '';
