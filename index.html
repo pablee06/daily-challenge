@@ -54,6 +54,9 @@ header{position:sticky; top:0; z-index:20; background:var(--bg); border-bottom:1
 .refresh-btn{background:none; border:none; color:var(--text-faint); font-size:15px; cursor:pointer; padding:4px 6px;}
 .refresh-btn.spin{animation:spin 0.7s linear;}
 .loading-spinner{width:34px; height:34px; border-radius:50%; border:3px solid var(--paper-edge); border-top-color:var(--accent); animation:spin 0.8s linear infinite; margin:0 auto;}
+#globalLoadBar{position:fixed; top:0; left:0; height:3px; width:0%; background:var(--accent); z-index:9999; opacity:0; pointer-events:none;}
+#globalLoadBar.active{opacity:1; width:72%; transition:width 2.2s cubic-bezier(.15,.6,.2,1), opacity 0.2s ease;}
+#globalLoadBar.done{width:100%; opacity:1; transition:width 0.2s ease, opacity 0.15s ease 0.1s;}
 .load-stars{display:flex; gap:9px; justify-content:center; margin:28px 0 16px; font-size:27px; line-height:1;}
 .load-star{color:var(--paper-edge); transition:color 0.25s ease, text-shadow 0.25s ease; display:inline-block;}
 .load-star.filled{color:#f4b942; text-shadow:0 0 10px rgba(244,185,66,0.55);}
@@ -209,6 +212,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
 </head>
 <body>
 
+<div id="globalLoadBar"></div>
 <div id="app">
   <div class="onboard">
     <div class="onboard-card" style="text-align:center;">
@@ -217,7 +221,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
         <span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span>
       </div>
       <div class="onboard-sub" style="margin:0;">Lädt…</div>
-      <div id="appVersionTag" style="font-size:11px; color:var(--text-faint); margin-top:16px;">Build 4</div>
+      <div id="appVersionTag" style="font-size:11px; color:var(--text-faint); margin-top:16px;">Build 5</div>
     </div>
   </div>
 </div>
@@ -227,7 +231,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
 <script>
 // Bei jeder inhaltlichen Änderung an dieser Datei hochzählen — erscheint klein
 // im Ladebildschirm, damit sofort sichtbar ist, ob ein neuer Stand live ist.
-const APP_VERSION = 'Build 4';
+const APP_VERSION = 'Build 5';
 (() => { const t = document.getElementById('appVersionTag'); if(t) t.textContent = APP_VERSION; })();
 function setLoadProgress(pct){
   pct = Math.max(0, Math.min(100, pct));
@@ -377,6 +381,38 @@ async function sbRowList(code, prefix){
   if(error){ console.error('supabase list failed', prefix, error); return []; }
   return data.map(r => r.key);
 }
+// Liefert Key+Wert für alle Zeilen eines Präfixes in EINEM Request, statt
+// erst die Keys zu listen und dann jeden Wert einzeln nachzuladen (N+1).
+async function sbRowListWithValues(code, prefix){
+  const sb = getSb();
+  const escaped = prefix.replace(/[%_\\]/g, ch => '\\' + ch);
+  const { data, error } = await sb.from('kv_store').select('key,value').eq('code', code).like('key', escaped + '%');
+  if(error){ console.error('supabase list+values failed', prefix, error); return []; }
+  return data;
+}
+// Wie oben, aber Sortierung (neueste zuerst) + Limit direkt in der DB —
+// für den Chat/Log, wo wir sowieso nur die letzten N Einträge brauchen.
+async function sbRowsLatestByPrefix(code, prefix, limit){
+  const sb = getSb();
+  const escaped = prefix.replace(/[%_\\]/g, ch => '\\' + ch);
+  const { data, error } = await sb.from('kv_store').select('key,value').eq('code', code)
+    .like('key', escaped + '%').order('key', {ascending:false}).limit(limit);
+  if(error){ console.error('supabase latest-by-prefix failed', prefix, error); return []; }
+  return data;
+}
+// Holt Zeilen für MEHRERE Präfixe auf einmal (z.B. Reaktionen für 12
+// verschiedene Chat-Einträge, oder Stimmen für mehrere Spieler gleichzeitig)
+// in einem einzigen Request statt einem Request pro Präfix.
+async function sbRowsForPrefixes(code, prefixes){
+  if(!prefixes.length) return [];
+  const sb = getSb();
+  const esc = s => s.replace(/[%_\\]/g, ch => '\\' + ch);
+  const orExpr = prefixes.map(p => `key.like.${esc(p)}%`).join(',');
+  const { data, error } = await sb.from('kv_store').select('key,value').eq('code', code).or(orExpr);
+  if(error){ console.error('supabase multi-prefix fetch failed', error); return []; }
+  return data;
+}
+
 async function sbRowDelete(code, key){
   const sb = getSb();
   const { error } = await sb.from('kv_store').delete().eq('code', code).eq('key', key);
@@ -453,17 +489,50 @@ async function remoteFlush(){
 function isRemote(){ return !!(identity && identity.remote); }
 
 async function withRetry(fn, attempts=3){
-  let lastErr;
-  for(let i=0; i<attempts; i++){
-    try{ return await fn(); }
-    catch(e){
-      lastErr = e;
-      const msg = (e && e.message) || '';
-      if(/rate limit/i.test(msg)) throw e; // don't hammer further on a rate limit
-      if(i < attempts-1) await new Promise(r => setTimeout(r, 400 * (i+1)));
+  requestStart();
+  try{
+    let lastErr;
+    for(let i=0; i<attempts; i++){
+      try{ return await fn(); }
+      catch(e){
+        lastErr = e;
+        const msg = (e && e.message) || '';
+        if(/rate limit/i.test(msg)) throw e; // don't hammer further on a rate limit
+        if(i < attempts-1) await new Promise(r => setTimeout(r, 400 * (i+1)));
+      }
+    }
+    throw lastErr;
+  } finally {
+    requestEnd();
+  }
+}
+
+/* ---------------- globale Ladeanzeige ----------------
+   Dünner Balken ganz oben, erscheint automatisch bei JEDEM laufenden
+   Netzwerk-Request (via withRetry) — egal ob Boot, Poll, Abstimmen, Chat
+   senden usw. Keine einzelne Aktion muss das selbst ansteuern. */
+let activeRequestCount = 0;
+let globalBarResetTimer = null;
+function requestStart(){
+  activeRequestCount++;
+  const bar = document.getElementById('globalLoadBar');
+  if(bar && activeRequestCount === 1){
+    clearTimeout(globalBarResetTimer);
+    bar.classList.remove('done');
+    void bar.offsetWidth; // Reflow erzwingen, damit die Breiten-Animation jedes Mal neu von vorn startet
+    bar.classList.add('active');
+  }
+}
+function requestEnd(){
+  activeRequestCount = Math.max(0, activeRequestCount - 1);
+  if(activeRequestCount === 0){
+    const bar = document.getElementById('globalLoadBar');
+    if(bar){
+      bar.classList.remove('active');
+      bar.classList.add('done');
+      globalBarResetTimer = setTimeout(() => { bar.classList.remove('done'); }, 260);
     }
   }
-  throw lastErr;
 }
 
 async function sGet(key, shared){
@@ -574,6 +643,40 @@ async function sDelete(key, shared){
   }catch(e){ return null; }
 }
 function suffix(key, prefix){ return key.slice(prefix.length); }
+
+// Liste + Werte in einem Rutsch, als {key, value}-Paare. Bei Supabase ein
+// einziger Request statt "Keys listen, dann jeden Wert einzeln holen".
+async function sListGet(prefix, shared){
+  if(shared && isSupabase()){
+    try{
+      const rows = await withRetry(() => sbRowListWithValues(remoteBlobId, prefix));
+      return rows.filter(r => r.value !== null && r.value !== undefined);
+    }catch(e){ console.error('supabase list+get failed', prefix, e); return []; }
+  }
+  const keys = await sList(prefix, shared);
+  const vals = await Promise.all(keys.map(k => sGet(k, shared)));
+  return keys.map((k,i) => ({key:k, value:vals[i]})).filter(r => r.value !== null && r.value !== undefined);
+}
+// Wie sListGet, aber nur die neuesten "limit" Einträge (für den Chat/Log).
+async function sListGetLatest(prefix, limit, shared){
+  if(shared && isSupabase()){
+    try{ return await withRetry(() => sbRowsLatestByPrefix(remoteBlobId, prefix, limit)); }
+    catch(e){ console.error('supabase latest failed', prefix, e); return []; }
+  }
+  const keys = (await sList(prefix, shared)).sort().reverse().slice(0, limit);
+  const vals = await Promise.all(keys.map(k => sGet(k, shared)));
+  return keys.map((k,i) => ({key:k, value:vals[i]})).filter(r => r.value !== null && r.value !== undefined);
+}
+// Werte für mehrere Präfixe auf einmal (z.B. Reaktionen mehrerer Log-Einträge,
+// Stimmen mehrerer Spieler) — bei Supabase ein Request statt einem pro Präfix.
+async function sListGetMulti(prefixes, shared){
+  if(shared && isSupabase()){
+    try{ return await withRetry(() => sbRowsForPrefixes(remoteBlobId, prefixes)); }
+    catch(e){ console.error('supabase multi-prefix failed', e); return []; }
+  }
+  const results = await Promise.all(prefixes.map(p => sListGet(p, shared)));
+  return results.flat();
+}
 
 function pad2(n){ return String(n).padStart(2,'0'); }
 function localDateStr(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
@@ -861,7 +964,18 @@ async function processWeeklyTitles(code, day, players){
   await sSet(processedKey, weekNum - 1, true);
 }
 
+let loadStateInFlight = null;
 async function loadState(){
+  // Poll und Realtime können sich theoretisch überschneiden — ohne das hier
+  // könnten dann z.B. zwei Durchläufe gleichzeitig "ensureMyAssignment"
+  // auslösen und sich gegenseitig überschreiben. Läuft schon einer, hängt
+  // sich jeder weitere Aufruf einfach an dessen Ergebnis statt neu zu starten.
+  if(loadStateInFlight) return loadStateInFlight;
+  loadStateInFlight = loadStateImpl();
+  try{ await loadStateInFlight; }
+  finally{ loadStateInFlight = null; }
+}
+async function loadStateImpl(){
   const displayCode = identity.code, me = identity.playerId;
   if(isRemote() && !isSupabase()){
     try{ await remoteFetch(); }
@@ -869,14 +983,16 @@ async function loadState(){
   }
   const code = isRemote() ? remoteBlobId : displayCode;
 
-  // Runde 1: alles abfragen, was voneinander unabhängig ist (kein Wert hängt
-  // vom Ergebnis eines anderen ab) — parallel statt nacheinander.
-  const [startDateRaw, memberKeys, poolKeys, reviewKeys, logKeysRaw] = await Promise.all([
+  // Runde 1: alles abfragen, was voneinander unabhängig ist — parallel, und
+  // Key+Wert in je EINEM Request statt "Keys listen, dann jeden Wert einzeln
+  // holen" (N+1-Problem). Für den Chat werden Sortierung+Limit (letzte 12)
+  // direkt in der Datenbank gemacht statt im Browser.
+  const [startDateRaw, memberRows, poolRows, reviewRows, logRows] = await Promise.all([
     sGet(`dc:${code}:daystart`, true),
-    sList(`dc:${code}:member:`, true),
-    sList(`dc:${code}:pool:`, true),
-    sList(`dc:${code}:review:`, true),
-    sList(`dc:${code}:log:`, true),
+    sListGet(`dc:${code}:member:`, true),
+    sListGet(`dc:${code}:pool:`, true),
+    sListGet(`dc:${code}:review:`, true),
+    sListGetLatest(`dc:${code}:log:`, 12, true),
   ]);
   const startDate = startDateRaw || localDateStr(new Date());
   const {day, cycle} = computeDayCycle(startDate);
@@ -891,16 +1007,11 @@ async function loadState(){
     await sSet(lastSeenKey, day, false);
   }
 
-  // Runde 2: hängt nur von "day" bzw. den Key-Listen aus Runde 1 ab.
-  const [memberVals, poolVals, reviewVals, todayAssignKeys] = await Promise.all([
-    Promise.all(memberKeys.map(k => sGet(k, true))),
-    Promise.all(poolKeys.map(k => sGet(k, true))),
-    Promise.all(reviewKeys.map(k => sGet(k, true))),
-    sList(`dc:${code}:assign:${day}:`, true),
-  ]);
-  const players = memberKeys.map((k,i) => memberVals[i] ? {id: suffix(k, `dc:${code}:member:`), ...memberVals[i]} : null).filter(Boolean);
-  const pool = poolKeys.map((k,i) => poolVals[i] ? {id: suffix(k, `dc:${code}:pool:`), ...poolVals[i]} : null).filter(Boolean);
-  const reviews = reviewKeys.map((k,i) => reviewVals[i] ? {id: suffix(k, `dc:${code}:review:`), ...reviewVals[i]} : null).filter(Boolean);
+  const players = memberRows.map(r => ({id: suffix(r.key, `dc:${code}:member:`), ...r.value}));
+  const pool = poolRows.map(r => ({id: suffix(r.key, `dc:${code}:pool:`), ...r.value}));
+  const reviews = reviewRows.map(r => ({id: suffix(r.key, `dc:${code}:review:`), ...r.value}));
+
+  const todayAssignRows = await sListGet(`dc:${code}:assign:${day}:`, true);
   setLoadProgress(60);
 
   // muss NACH den Mitgliedern und VOR dem Title-Reload laufen (kann neue
@@ -908,54 +1019,64 @@ async function loadState(){
   await processWeeklyTitles(code, day, players);
 
   const weekNum = Math.floor((day - 1) / 7) + 1;
-  const [titleKeys, punishInfo, todayAssignVals] = await Promise.all([
-    sList(`dc:${code}:title:`, true),
+  const [titleRows, punishInfo] = await Promise.all([
+    sListGet(`dc:${code}:title:`, true),
     sGet(`dc:${code}:punishment:${weekNum}`, true),
-    Promise.all(todayAssignKeys.map(k => sGet(k, true))),
   ]);
-  const titleVals = await Promise.all(titleKeys.map(k => sGet(k, true)));
   const titles = {};
-  titleKeys.forEach((k,i) => { if(titleVals[i]) titles[suffix(k, `dc:${code}:title:`)] = titleVals[i]; });
+  titleRows.forEach(r => { titles[suffix(r.key, `dc:${code}:title:`)] = r.value; });
   players.forEach(p => { p.title = titles[p.id] || null; });
   setLoadProgress(78);
 
   let punishment = null;
   if(punishInfo){
-    const propKeys = await sList(`dc:${code}:punishprop:${weekNum}:`, true);
-    const propVals = await Promise.all(propKeys.map(k => sGet(k, true)));
-    const proposals = propKeys.map((k,i) => propVals[i] ? {id: suffix(k, `dc:${code}:punishprop:${weekNum}:`), ...propVals[i]} : null).filter(Boolean);
+    const propRows = await sListGet(`dc:${code}:punishprop:${weekNum}:`, true);
+    const proposals = propRows.map(r => ({id: suffix(r.key, `dc:${code}:punishprop:${weekNum}:`), ...r.value}));
     const votes = {};
-    await Promise.all(proposals.map(async p => {
-      const voteKeys = await sList(`dc:${code}:punishvote:${weekNum}:${p.id}:`, true);
-      votes[p.id] = voteKeys.map(k => suffix(k, `dc:${code}:punishvote:${weekNum}:${p.id}:`));
-    }));
+    proposals.forEach(p => { votes[p.id] = []; });
+    if(proposals.length){
+      const voteRows = await sListGetMulti(proposals.map(p => `dc:${code}:punishvote:${weekNum}:${p.id}:`), true);
+      const pfx = `dc:${code}:punishvote:${weekNum}:`;
+      voteRows.forEach(r => {
+        const rest = r.key.slice(pfx.length);
+        const sep = rest.indexOf(':');
+        const pid = rest.slice(0, sep), voterId = rest.slice(sep+1);
+        if(votes[pid]) votes[pid].push(voterId);
+      });
+    }
     punishment = {weekNum, targetId: punishInfo.targetId, proposals, votes};
   }
 
   const todayAssignments = {};
-  todayAssignKeys.forEach((k,i) => { if(todayAssignVals[i]) todayAssignments[suffix(k, `dc:${code}:assign:${day}:`)] = todayAssignVals[i]; });
+  todayAssignRows.forEach(r => { todayAssignments[suffix(r.key, `dc:${code}:assign:${day}:`)] = r.value; });
 
-  await Promise.all(Object.entries(todayAssignments).map(async ([pid, a]) => {
-    if(a.status !== 'voting') return;
-    const voteKeys = await sList(`dc:${code}:vote:${day}:${pid}:`, true);
-    const voteVals = await Promise.all(voteKeys.map(k => sGet(k, true)));
-    const votes = {};
-    voteKeys.forEach((k,i) => { votes[suffix(k, `dc:${code}:vote:${day}:${pid}:`)] = voteVals[i]; });
-    a.votes = votes;
-  }));
+  const votingPids = Object.entries(todayAssignments).filter(([,a]) => a.status==='voting').map(([pid]) => pid);
+  if(votingPids.length){
+    const voteRows = await sListGetMulti(votingPids.map(pid => `dc:${code}:vote:${day}:${pid}:`), true);
+    votingPids.forEach(pid => { todayAssignments[pid].votes = {}; });
+    const pfx = `dc:${code}:vote:${day}:`;
+    voteRows.forEach(r => {
+      const rest = r.key.slice(pfx.length);
+      const sep = rest.indexOf(':');
+      const pid = rest.slice(0, sep), voterId = rest.slice(sep+1);
+      if(todayAssignments[pid]) todayAssignments[pid].votes[voterId] = r.value;
+    });
+  }
 
-  const logKeys = logKeysRaw.sort().reverse().slice(0,12);
-  const logVals = await Promise.all(logKeys.map(async k => {
-    const v = await sGet(k, true);
-    if(!v) return null;
-    const id = suffix(k, `dc:${code}:log:`);
-    const reactionKeys = await sList(`dc:${code}:reaction:${id}:`, true);
-    const reactionVals = await Promise.all(reactionKeys.map(rk => sGet(rk, true)));
-    const reactions = {};
-    reactionKeys.forEach((rk,i) => { if(reactionVals[i]) reactions[suffix(rk, `dc:${code}:reaction:${id}:`)] = reactionVals[i]; });
-    return {...v, id, reactions};
-  }));
-  const log = logVals.filter(Boolean);
+  const logIds = logRows.map(r => suffix(r.key, `dc:${code}:log:`));
+  const reactionsByLog = {};
+  logIds.forEach(id => { reactionsByLog[id] = {}; });
+  if(logIds.length){
+    const reactionRows = await sListGetMulti(logIds.map(id => `dc:${code}:reaction:${id}:`), true);
+    const pfx = `dc:${code}:reaction:`;
+    reactionRows.forEach(r => {
+      const rest = r.key.slice(pfx.length);
+      const sep = rest.indexOf(':');
+      const id = rest.slice(0, sep), pid = rest.slice(sep+1);
+      if(reactionsByLog[id]) reactionsByLog[id][pid] = r.value;
+    });
+  }
+  const log = logRows.map(r => { const id = suffix(r.key, `dc:${code}:log:`); return {...r.value, id, reactions: reactionsByLog[id] || {}}; });
   setLoadProgress(94);
 
   S = {code, displayCode, day, cycle, players, pool, reviews, todayAssignments, log, punishment};
