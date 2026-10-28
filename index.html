@@ -54,6 +54,11 @@ header{position:sticky; top:0; z-index:20; background:var(--bg); border-bottom:1
 .refresh-btn{background:none; border:none; color:var(--text-faint); font-size:15px; cursor:pointer; padding:4px 6px;}
 .refresh-btn.spin{animation:spin 0.7s linear;}
 .loading-spinner{width:34px; height:34px; border-radius:50%; border:3px solid var(--paper-edge); border-top-color:var(--accent); animation:spin 0.8s linear infinite; margin:0 auto;}
+.load-stars{display:flex; gap:9px; justify-content:center; margin:28px 0 16px; font-size:27px; line-height:1;}
+.load-star{color:var(--paper-edge); transition:color 0.25s ease, text-shadow 0.25s ease; display:inline-block;}
+.load-star.filled{color:#f4b942; text-shadow:0 0 10px rgba(244,185,66,0.55);}
+.load-star.pop{animation:starPop 0.45s ease;}
+@keyframes starPop{0%{transform:scale(1) rotate(0);} 45%{transform:scale(1.45) rotate(-8deg);} 100%{transform:scale(1) rotate(0);}}
 @keyframes spin{to{transform:rotate(360deg);}}
 
 .tabs{display:flex; justify-content:space-around; gap:2px; max-width:640px; margin:0 auto 22px; padding:0; border-bottom:1px solid var(--paper-edge); width:100%;}
@@ -208,9 +213,11 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
   <div class="onboard">
     <div class="onboard-card" style="text-align:center;">
       <div class="onboard-title">DAILY <span>CHALLENGE</span></div>
-      <div class="loading-spinner" style="margin:30px auto 16px;"></div>
+      <div class="load-stars" id="loadStars">
+        <span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span>
+      </div>
       <div class="onboard-sub" style="margin:0;">Lädt…</div>
-      <div id="appVersionTag" style="font-size:11px; color:var(--text-faint); margin-top:18px;">Build 2</div>
+      <div id="appVersionTag" style="font-size:11px; color:var(--text-faint); margin-top:16px;">Build 4</div>
     </div>
   </div>
 </div>
@@ -220,8 +227,24 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
 <script>
 // Bei jeder inhaltlichen Änderung an dieser Datei hochzählen — erscheint klein
 // im Ladebildschirm, damit sofort sichtbar ist, ob ein neuer Stand live ist.
-const APP_VERSION = 'Build 2';
+const APP_VERSION = 'Build 4';
 (() => { const t = document.getElementById('appVersionTag'); if(t) t.textContent = APP_VERSION; })();
+function setLoadProgress(pct){
+  pct = Math.max(0, Math.min(100, pct));
+  const stars = document.querySelectorAll('#loadStars .load-star');
+  if(!stars.length) return;
+  const filledCount = Math.ceil((pct / 100) * stars.length);
+  stars.forEach((s, i) => {
+    const shouldFill = i < filledCount;
+    const wasFilled = s.classList.contains('filled');
+    if(shouldFill && !wasFilled){
+      s.classList.add('filled', 'pop');
+      setTimeout(() => s.classList.remove('pop'), 450);
+    } else if(!shouldFill && wasFilled){
+      s.classList.remove('filled');
+    }
+  });
+}
 
 /* =========================================================
    DAILY CHALLENGE — Multiplayer-Probeversion
@@ -857,6 +880,7 @@ async function loadState(){
   ]);
   const startDate = startDateRaw || localDateStr(new Date());
   const {day, cycle} = computeDayCycle(startDate);
+  setLoadProgress(35);
 
   const lastSeenKey = `dc:${code}:lastseenday`;
   const lastSeen = await sGet(lastSeenKey, false);
@@ -877,6 +901,7 @@ async function loadState(){
   const players = memberKeys.map((k,i) => memberVals[i] ? {id: suffix(k, `dc:${code}:member:`), ...memberVals[i]} : null).filter(Boolean);
   const pool = poolKeys.map((k,i) => poolVals[i] ? {id: suffix(k, `dc:${code}:pool:`), ...poolVals[i]} : null).filter(Boolean);
   const reviews = reviewKeys.map((k,i) => reviewVals[i] ? {id: suffix(k, `dc:${code}:review:`), ...reviewVals[i]} : null).filter(Boolean);
+  setLoadProgress(60);
 
   // muss NACH den Mitgliedern und VOR dem Title-Reload laufen (kann neue
   // Titel/eine Strafe schreiben, die wir gleich danach mit lesen wollen)
@@ -892,6 +917,7 @@ async function loadState(){
   const titles = {};
   titleKeys.forEach((k,i) => { if(titleVals[i]) titles[suffix(k, `dc:${code}:title:`)] = titleVals[i]; });
   players.forEach(p => { p.title = titles[p.id] || null; });
+  setLoadProgress(78);
 
   let punishment = null;
   if(punishInfo){
@@ -930,6 +956,7 @@ async function loadState(){
     return {...v, id, reactions};
   }));
   const log = logVals.filter(Boolean);
+  setLoadProgress(94);
 
   S = {code, displayCode, day, cycle, players, pool, reviews, todayAssignments, log, punishment};
 
@@ -2574,6 +2601,7 @@ async function boot(){
   // Ladebildschirm bleibt bewusst stehen, bis die Daten wirklich da sind —
   // renderShell() (Header/Tabs/leere Panels) kommt erst direkt vor render(),
   // damit niemand ein halb-leeres Grundgerüst zu sehen bekommt.
+  setLoadProgress(10);
   await loadState();
   if(!S){
     await new Promise(r => setTimeout(r, 1000));
@@ -2592,6 +2620,7 @@ async function boot(){
     document.getElementById('retryBoot').onclick = () => location.reload();
     return;
   }
+  setLoadProgress(100);
   renderShell();
   render();
   if(isSupabase()) setupSupabaseRealtime();
