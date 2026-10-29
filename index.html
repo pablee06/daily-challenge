@@ -221,7 +221,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
         <span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span>
       </div>
       <div class="onboard-sub" style="margin:0;">Lädt…</div>
-      <div id="appVersionTag" style="font-size:11px; color:var(--text-faint); margin-top:16px;">Build 6</div>
+      <div id="appVersionTag" style="font-size:11px; color:var(--text-faint); margin-top:16px;">Build 7</div>
     </div>
   </div>
 </div>
@@ -231,7 +231,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
 <script>
 // Bei jeder inhaltlichen Änderung an dieser Datei hochzählen — erscheint klein
 // im Ladebildschirm, damit sofort sichtbar ist, ob ein neuer Stand live ist.
-const APP_VERSION = 'Build 6';
+const APP_VERSION = 'Build 7';
 (() => { const t = document.getElementById('appVersionTag'); if(t) t.textContent = APP_VERSION; })();
 function setLoadProgress(pct){
   pct = Math.max(0, Math.min(100, pct));
@@ -1180,6 +1180,25 @@ async function processMissedPenalties(){
         await sSet(key, {...a, status:'resolved', result:'missed'}, true);
         penalty += MISS_PENALTY; missedCount++;
       }
+    } else if(a && a.status === 'voting'){
+      // Wurde eingereicht, aber nie fertig abgestimmt (z.B. zu wenige Mitspieler
+      // an dem Tag) — der Tag ist vorbei, also jetzt mit den bis dahin
+      // eingegangenen Stimmen final auswerten, statt für immer in
+      // "Abstimmung läuft" hängen zu bleiben. Zählt NICHT als "nicht versucht",
+      // da die Aufgabe ja eingereicht wurde.
+      const votes = a.votes || {};
+      const yes = Object.values(votes).filter(v=>v==='yes').length;
+      const no = Object.values(votes).filter(v=>v==='no').length;
+      const passed = yes > no;
+      await sSet(key, {...a, status:'resolved', result: passed ? 'completed' : 'failed'}, true);
+      if(passed){
+        const meRecNow = getMe();
+        const gained = a.task.points;
+        const newStreak = (meRecNow.streak||0) + 1;
+        const newBest = Math.max(meRecNow.bestStreak||0, newStreak);
+        await sSet(`dc:${S.code}:member:${me}`, memberPayload(meRecNow, {xp: meRecNow.xp + gained, weeklyXp: meRecNow.weeklyXp + gained, streak:newStreak, bestStreak:newBest}), true);
+        meRecNow.xp += gained; meRecNow.weeklyXp += gained; meRecNow.streak = newStreak; meRecNow.bestStreak = newBest;
+      }
     } else if(!a){
       // never opened the app that day, so no task was ever picked up —
       // still counts as a missed day, same as everyone else
@@ -1189,7 +1208,7 @@ async function processMissedPenalties(){
       }, true);
       if(shielded) protectedCount++; else { penalty += MISS_PENALTY; missedCount++; }
     }
-    // status 'voting' or 'resolved' already handled — leave untouched
+    // status 'resolved' bereits erledigt — unberührt lassen
   }
   if(missedCount > 0){
     const meRec = getMe();
@@ -2239,6 +2258,8 @@ function renderDashboard(){
     let bottom = '';
     if(a.status === 'active'){
       bottom = `<div style="margin-top:14px;"><button class="btn btn-primary" id="completeBtn">Aufgabe abschließen</button></div>`;
+    } else if(a.status === 'voting' && otherPlayers().length === 0){
+      bottom = `<div class="vote-box"><div class="hint" style="margin:0;">👥 Eingereicht — aber es ist noch niemand sonst in der Gruppe, der abstimmen könnte. Lade mindestens eine Person über den Gruppen-Code ein, dann wird hier final abgestimmt.</div></div>`;
     } else if(a.status === 'voting'){
       const votes = a.votes || {};
       const yes = Object.values(votes).filter(v=>v==='yes').length;
