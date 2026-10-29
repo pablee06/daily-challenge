@@ -221,7 +221,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
         <span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span>
       </div>
       <div class="onboard-sub" style="margin:0;">Lädt…</div>
-      <div id="appVersionTag" style="font-size:11px; color:var(--text-faint); margin-top:16px;">Build 5</div>
+      <div id="appVersionTag" style="font-size:11px; color:var(--text-faint); margin-top:16px;">Build 6</div>
     </div>
   </div>
 </div>
@@ -231,7 +231,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
 <script>
 // Bei jeder inhaltlichen Änderung an dieser Datei hochzählen — erscheint klein
 // im Ladebildschirm, damit sofort sichtbar ist, ob ein neuer Stand live ist.
-const APP_VERSION = 'Build 5';
+const APP_VERSION = 'Build 6';
 (() => { const t = document.getElementById('appVersionTag'); if(t) t.textContent = APP_VERSION; })();
 function setLoadProgress(pct){
   pct = Math.max(0, Math.min(100, pct));
@@ -965,6 +965,7 @@ async function processWeeklyTitles(code, day, players){
 }
 
 let loadStateInFlight = null;
+let identityInvalidated = false; // wird in loadStateImpl() gesetzt, wenn die lokale Identität kein DB-Mitglied mehr ist
 async function loadState(){
   // Poll und Realtime können sich theoretisch überschneiden — ohne das hier
   // könnten dann z.B. zwei Durchläufe gleichzeitig "ensureMyAssignment"
@@ -1078,6 +1079,22 @@ async function loadStateImpl(){
   }
   const log = logRows.map(r => { const id = suffix(r.key, `dc:${code}:log:`); return {...r.value, id, reactions: reactionsByLog[id] || {}}; });
   setLoadProgress(94);
+
+  // Anmeldung gegen die Datenbank verifizieren: nur wer hier wirklich noch als
+  // Mitglied existiert, gilt als angemeldet. Die lokal gespeicherte Identität
+  // allein reicht nicht mehr — ohne diese Prüfung würde ein Gerät mit einer
+  // veralteten/ungültigen Identität weiter täglich Aufgaben für einen
+  // "Geister"-Account bekommen, der es laut Datenbank gar nicht mehr gibt.
+  if(!players.some(p => p.id === me)){
+    console.warn('Lokale Identität ist kein gültiges Mitglied mehr — Abmeldung.');
+    identityInvalidated = true;
+    await sSet('my-identity', null, false);
+    identity = null; S = null;
+    teardownSupabaseRealtime();
+    renderOnboarding();
+    showToast('Du wurdest abgemeldet — bitte erneut anmelden');
+    return;
+  }
 
   S = {code, displayCode, day, cycle, players, pool, reviews, todayAssignments, log, punishment};
 
@@ -2723,10 +2740,13 @@ async function boot(){
   // renderShell() (Header/Tabs/leere Panels) kommt erst direkt vor render(),
   // damit niemand ein halb-leeres Grundgerüst zu sehen bekommt.
   setLoadProgress(10);
+  identityInvalidated = false;
   await loadState();
+  if(identityInvalidated){ identityInvalidated = false; return; } // renderOnboarding() lief schon in loadStateImpl()
   if(!S){
     await new Promise(r => setTimeout(r, 1000));
     await loadState();
+    if(identityInvalidated){ identityInvalidated = false; return; }
   }
   if(!S){
     document.getElementById('app').innerHTML = `
