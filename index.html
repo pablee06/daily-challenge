@@ -221,7 +221,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
         <span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span><span class="load-star">★</span>
       </div>
       <div class="onboard-sub" style="margin:0;">Lädt…</div>
-      <div id="appVersionTag" style="font-size:11px; color:var(--text-faint); margin-top:16px;">Build 7</div>
+      <div id="appVersionTag" style="font-size:11px; color:var(--text-faint); margin-top:16px;">Build 8</div>
     </div>
   </div>
 </div>
@@ -231,7 +231,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
 <script>
 // Bei jeder inhaltlichen Änderung an dieser Datei hochzählen — erscheint klein
 // im Ladebildschirm, damit sofort sichtbar ist, ob ein neuer Stand live ist.
-const APP_VERSION = 'Build 7';
+const APP_VERSION = 'Build 8';
 (() => { const t = document.getElementById('appVersionTag'); if(t) t.textContent = APP_VERSION; })();
 function setLoadProgress(pct){
   pct = Math.max(0, Math.min(100, pct));
@@ -418,6 +418,80 @@ async function sbRowDelete(code, key){
   const { error } = await sb.from('kv_store').delete().eq('code', code).eq('key', key);
   if(error){ console.error('supabase delete failed', key, error); return null; }
   return true;
+}
+
+/* ---------------- Push-Benachrichtigungen ----------------
+   Eigenständige Schicht, unabhängig vom jeweiligen Spiel-Backend — die
+   Abos liegen in einer eigenen Supabase-Tabelle (push_subscriptions), zwei
+   Edge Functions verschicken: send-push (sofort, bei Aktionen) und
+   send-daily-reminders (per Cron einmal täglich, für "Aufgabe noch offen"). */
+const VAPID_PUBLIC_KEY = 'BHVoOo-auKSos433JbgrvOmhe0LcB5maAvHzWdzC6Ydfcj7DuvFhJAiwrNpd0ocKW_hDS-a9-UFLAoSM8Bzi9X4';
+const SEND_PUSH_URL = 'https://tasqaanfdbdrvibeadfs.supabase.co/functions/v1/send-push';
+
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for(let i=0; i<raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+function pushCode(){ return isRemote() ? remoteBlobId : identity.code; }
+
+async function pushSubscriptionStatus(){
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)) return 'unsupported';
+  if(Notification.permission === 'denied') return 'denied';
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  return sub ? 'on' : 'off';
+}
+
+async function enablePushNotifications(){
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){ showToast('Dieses Gerät/dieser Browser unterstützt keine Push-Benachrichtigungen'); return false; }
+  if(!hasSupabase()){ showToast('Cloud-Speicher gerade nicht erreichbar'); return false; }
+  const perm = await Notification.requestPermission();
+  if(perm !== 'granted'){ showToast('Benachrichtigungen wurden nicht erlaubt'); return false; }
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub){
+      sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
+    }
+    const sb = getSb();
+    const { error } = await sb.from('push_subscriptions').upsert({
+      code: pushCode(), player_id: identity.playerId, endpoint: sub.endpoint, subscription: sub.toJSON()
+    }, {onConflict:'code,player_id,endpoint'});
+    if(error) throw error;
+    showToast('🔔 Benachrichtigungen aktiviert');
+    return true;
+  }catch(e){
+    console.error('push subscribe failed', e);
+    showToast('Benachrichtigungen konnten nicht aktiviert werden');
+    return false;
+  }
+}
+
+async function disablePushNotifications(){
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if(sub){
+      const sb = getSb();
+      if(sb) await sb.from('push_subscriptions').delete().eq('code', pushCode()).eq('player_id', identity.playerId).eq('endpoint', sub.endpoint);
+      await sub.unsubscribe();
+    }
+    showToast('🔕 Benachrichtigungen deaktiviert');
+  }catch(e){ console.error('push unsubscribe failed', e); }
+}
+
+// Feuert eine sofortige Push-Benachrichtigung ab (nicht blockierend — ein
+// fehlgeschlagener Versand darf die eigentliche Aktion nie aufhalten).
+function sendPushNotification({excludePlayerId, onlyPlayerIds, title, body}){
+  if(!hasSupabase() || !S) return;
+  fetch(SEND_PUSH_URL, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({code: pushCode(), excludePlayerId, onlyPlayerIds, title, body, url:'/'})
+  }).catch(e => console.error('push send failed', e));
 }
 
 let sbChannel = null;
@@ -751,7 +825,7 @@ async function loginOrCreateMember(code, name, personalPw){
     return {playerId: existing.playerId, rec: existing.rec, isNew:false};
   }
   const playerId = 'p_' + genId();
-  const rec = {name, emoji: EMOJIS[Math.floor(Math.random()*EMOJIS.length)], xp:0, weeklyXp:0, ownedThemes:['plain'], selectedTheme:'plain', pwHash: hash};
+  const rec = {name, emoji: EMOJIS[Math.floor(Math.random()*EMOJIS.length)], xp:0, weeklyXp:0, ownedThemes:['plain'], selectedTheme:'plain', pwHash: hash, freeJokers:1};
   await sSet(`dc:${code}:member:${playerId}`, rec, true);
   return {playerId, rec, isNew:true};
 }
@@ -1235,6 +1309,11 @@ async function createTask(data){
   };
   await sSet(`dc:${S.code}:review:${id}`, review, true);
   await pushLog(`${meRec.emoji} <b>${esc(meRec.name)}</b> hat eine neue Aufgabe zur Prüfung eingereicht.`);
+  sendPushNotification({
+    onlyPlayerIds: [reviewer.id],
+    title: '🔍 Bitte etwas prüfen',
+    body: `${meRec.name} hat eine neue Aufgabe eingereicht — du bist dran.`
+  });
 }
 
 async function resolveReview(reviewId, accepted, difficulty, reason){
@@ -1272,6 +1351,13 @@ async function submitProof(proofText){
   S.todayAssignments[me] = updated;
   const meRec = getMe();
   await pushLog(`${meRec.emoji} <b>${esc(meRec.name)}</b> hat „${esc(a.task.title)}" eingereicht. Die Gruppe stimmt jetzt ab.`);
+  if(otherPlayers().length > 0){
+    sendPushNotification({
+      excludePlayerId: me,
+      title: '🗳️ Abstimmung nötig',
+      body: `${meRec.name} hat „${a.task.title}" eingereicht — jetzt abstimmen.`
+    });
+  }
 }
 
 async function castVote(assigneeId, vote){
@@ -1995,6 +2081,9 @@ function openSettingsModal(){
       <div class="section-title" style="margin-top:0;">Design<div class="rule"></div></div>
       <div id="settingsThemeList"></div>
       <div class="hint">Weitere Designs gibt's im 🛍️ Shop.</div>
+      <div class="section-title">Benachrichtigungen<div class="rule"></div></div>
+      <button class="btn btn-ghost" id="pushToggleBtn" style="margin-bottom:6px;" disabled>Lädt…</button>
+      <div class="hint" style="margin-top:0;">Push bei: jemand muss abstimmen, eine Aufgabe prüfen, oder hat die eigene Tagesaufgabe noch offen.</div>
       <div class="section-title">Hilfe<div class="rule"></div></div>
       <button class="btn btn-ghost" id="openTutorialBtn" style="margin-bottom:10px;">📖 Kurzen Rundgang nochmal ansehen</button>
       <button class="btn btn-ghost" id="openInfoBtn">ℹ️ Wie funktioniert's? Regeln &amp; Strafen</button>
@@ -2008,6 +2097,22 @@ function openSettingsModal(){
   const close = () => { groupModalOpen = false; overlay.remove(); };
   overlay.onclick = (e) => { if(e.target === overlay) close(); };
   document.getElementById('settingsClose').onclick = close;
+
+  const refreshPushBtn = async () => {
+    const btn = document.getElementById('pushToggleBtn');
+    if(!btn) return;
+    const status = await pushSubscriptionStatus();
+    if(status === 'unsupported'){ btn.textContent = 'Nicht unterstützt auf diesem Gerät'; btn.disabled = true; return; }
+    if(status === 'denied'){ btn.textContent = '🔕 In den Geräte-Einstellungen blockiert'; btn.disabled = true; return; }
+    btn.disabled = false;
+    btn.textContent = status === 'on' ? '🔔 Benachrichtigungen deaktivieren' : '🔕 Benachrichtigungen aktivieren';
+    btn.onclick = async () => {
+      btn.disabled = true;
+      if(status === 'on') await disablePushNotifications(); else await enablePushNotifications();
+      await refreshPushBtn();
+    };
+  };
+  refreshPushBtn();
 
   const renderOwnedList = () => {
     const meNow = getMe();
@@ -2105,18 +2210,20 @@ function wireThemeButtons(){
 
 function renderShopList(perks, me, myAssign, taskActive, hasShield){
   return perks.map(p => {
+    const freeJoker = p.id === 'joker' && (me.freeJokers ?? 1) > 0;
     let disabledReason = null;
-    if(me.xp < p.cost) disabledReason = 'Nicht genug XP';
+    if(!freeJoker && me.xp < p.cost) disabledReason = 'Nicht genug XP';
     else if(p.id === 'shield' && hasShield) disabledReason = 'Heute schon aktiv';
     else if(p.id !== 'shield' && !taskActive) disabledReason = 'Nur vor dem Abschließen nutzbar';
     else if(p.id === 'discount' && myAssign && myAssign.task.difficulty === 'easy') disabledReason = 'Schon auf Einfach';
+    const label = disabledReason || (freeJoker ? 'Kostenlos verfügbar' : p.cost + ' XP');
     return `<div class="card" style="display:flex; align-items:center; gap:12px;">
       <div style="font-size:26px;">${p.icon}</div>
       <div style="flex:1;">
-        <div style="font-weight:700; font-size:13.5px;">${p.label}</div>
+        <div style="font-weight:700; font-size:13.5px;">${p.label}${freeJoker ? ' <span style="color:var(--accent); font-weight:800;">· 1× gratis</span>' : ''}</div>
         <div class="hint" style="margin:2px 0 0;">${p.desc}</div>
       </div>
-      <button class="btn btn-accent" data-perk="${p.id}" style="width:auto; padding:9px 14px; font-size:12px;" ${disabledReason ? 'disabled title="'+disabledReason+'"' : ''}>${disabledReason || p.cost + ' XP'}</button>
+      <button class="btn btn-accent" data-perk="${p.id}" style="width:auto; padding:9px 14px; font-size:12px;" ${disabledReason ? 'disabled title="'+disabledReason+'"' : ''}>${label}</button>
     </div>`;
   }).join('');
 }
@@ -2165,7 +2272,9 @@ async function selectTheme(themeId){
 async function buyPerk(perkId){
   const perk = PERKS.find(p => p.id === perkId);
   const meRec = getMe();
-  if(!perk || meRec.xp < perk.cost) return;
+  const freeJokersLeft = perkId === 'joker' ? (meRec.freeJokers ?? 1) : 0;
+  const usingFreeJoker = perkId === 'joker' && freeJokersLeft > 0;
+  if(!perk || (!usingFreeJoker && meRec.xp < perk.cost)) return;
   const me = identity.playerId;
   const a = S.todayAssignments[me];
 
@@ -2198,10 +2307,16 @@ async function buyPerk(perkId){
     await sSet(`dc:${S.code}:assign:${S.day}:${me}`, updated, true);
   }
 
-  const updatedXp = meRec.xp - perk.cost, updatedWeekly = meRec.weeklyXp - perk.cost;
-  await sSet(`dc:${S.code}:member:${me}`, memberPayload(meRec, {xp:updatedXp, weeklyXp:updatedWeekly}), true);
-  await pushLog(`${meRec.emoji} <b>${esc(meRec.name)}</b> hat „${perk.icon} ${perk.label}" für ${perk.cost} XP gekauft.`);
-  showToast(`${perk.icon} ${perk.label} aktiviert`);
+  if(usingFreeJoker){
+    await sSet(`dc:${S.code}:member:${me}`, memberPayload(meRec, {freeJokers: freeJokersLeft - 1}), true);
+    await pushLog(`${meRec.emoji} <b>${esc(meRec.name)}</b> hat seinen kostenlosen 🃏 Joker eingelöst.`);
+    showToast(`🃏 Joker eingelöst — kostenlos`);
+  } else {
+    const updatedXp = meRec.xp - perk.cost, updatedWeekly = meRec.weeklyXp - perk.cost;
+    await sSet(`dc:${S.code}:member:${me}`, memberPayload(meRec, {xp:updatedXp, weeklyXp:updatedWeekly}), true);
+    await pushLog(`${meRec.emoji} <b>${esc(meRec.name)}</b> hat „${perk.icon} ${perk.label}" für ${perk.cost} XP gekauft.`);
+    showToast(`${perk.icon} ${perk.label} aktiviert`);
+  }
 }
 
 function render(){
@@ -2257,7 +2372,12 @@ function renderDashboard(){
     const t = a.task;
     let bottom = '';
     if(a.status === 'active'){
-      bottom = `<div style="margin-top:14px;"><button class="btn btn-primary" id="completeBtn">Aufgabe abschließen</button></div>`;
+      const meRecNow = getMe();
+      const freeJoker = meRecNow && (meRecNow.freeJokers ?? 1) > 0;
+      bottom = `<div style="margin-top:14px; display:flex; gap:8px;">
+        <button class="btn btn-primary" id="completeBtn" style="flex:1;">Aufgabe abschließen</button>
+        <button class="btn btn-ghost" id="declineBtn" style="flex:none; padding:10px 14px;" title="${freeJoker ? 'Kostenlos ablehnen (1× gratis)' : 'Für 40 XP ablehnen — keine Minuspunkte, aber auch keine XP'}">🃏 Ablehnen</button>
+      </div>`;
     } else if(a.status === 'voting' && otherPlayers().length === 0){
       bottom = `<div class="vote-box"><div class="hint" style="margin:0;">👥 Eingereicht — aber es ist noch niemand sonst in der Gruppe, der abstimmen könnte. Lade mindestens eine Person über den Gruppen-Code ein, dann wird hier final abgestimmt.</div></div>`;
     } else if(a.status === 'voting'){
@@ -2335,6 +2455,16 @@ function renderDashboard(){
   `;
   const cb = document.getElementById('completeBtn');
   if(cb) cb.onclick = openProofModal;
+  const db = document.getElementById('declineBtn');
+  if(db) db.onclick = async () => {
+    const meRecNow = getMe();
+    const freeJoker = meRecNow && (meRecNow.freeJokers ?? 1) > 0;
+    if(!freeJoker && (!meRecNow || meRecNow.xp < 40)){ showToast('Nicht genug XP zum Ablehnen (40 XP) — dein kostenloser Joker ist schon aufgebraucht'); return; }
+    if(!freeJoker && !confirm('Aufgabe für 40 XP ablehnen? Keine Minuspunkte, aber auch keine XP für heute.')) return;
+    db.disabled = true;
+    await buyPerk('joker');
+    await loadState(); render();
+  };
   const chatInput = document.getElementById('chatInput');
   chatInput.oninput = () => { chatInputDirty = true; };
   const sendChat = async () => {
