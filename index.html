@@ -231,7 +231,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
 <script>
 // Bei jeder inhaltlichen Änderung an dieser Datei hochzählen — erscheint klein
 // im Ladebildschirm, damit sofort sichtbar ist, ob ein neuer Stand live ist.
-const APP_VERSION = 'Build 9';
+const APP_VERSION = 'Build 11';
 (() => { const t = document.getElementById('appVersionTag'); if(t) t.textContent = APP_VERSION; })();
 function setLoadProgress(pct){
   pct = Math.max(0, Math.min(100, pct));
@@ -825,7 +825,7 @@ async function loginOrCreateMember(code, name, personalPw){
     return {playerId: existing.playerId, rec: existing.rec, isNew:false};
   }
   const playerId = 'p_' + genId();
-  const rec = {name, emoji: EMOJIS[Math.floor(Math.random()*EMOJIS.length)], xp:0, weeklyXp:0, ownedThemes:['plain'], selectedTheme:'plain', pwHash: hash, freeJokers:1};
+  const rec = {name, emoji: EMOJIS[Math.floor(Math.random()*EMOJIS.length)], xp:100, weeklyXp:0, ownedThemes:['plain'], selectedTheme:'plain', pwHash: hash, freeJokers:1};
   await sSet(`dc:${code}:member:${playerId}`, rec, true);
   return {playerId, rec, isNew:true};
 }
@@ -1082,9 +1082,20 @@ async function loadStateImpl(){
     await sSet(lastSeenKey, day, false);
   }
 
-  const players = memberRows.map(r => ({id: suffix(r.key, `dc:${code}:member:`), ...r.value}));
+  let players = memberRows.map(r => ({id: suffix(r.key, `dc:${code}:member:`), ...r.value}));
   const pool = poolRows.map(r => ({id: suffix(r.key, `dc:${code}:pool:`), ...r.value}));
   const reviews = reviewRows.map(r => ({id: suffix(r.key, `dc:${code}:review:`), ...r.value}));
+
+  // Einmaliger XP-Bonus: alle beim Umstieg auf "100 Start-XP" bereits
+  // bestehenden Mitglieder bekommen nachträglich 100 XP gutgeschrieben.
+  // Flag verhindert, dass das bei jedem Reload erneut passiert.
+  const xp100FlagKey = `dc:${code}:migration:xp100bonus`;
+  if(players.length && !(await sGet(xp100FlagKey, true))){
+    const updated = players.map(p => ({...p, xp: (p.xp||0) + 100}));
+    await batchSet(updated.map(p => [`dc:${code}:member:${p.id}`, memberPayload(p, {xp: p.xp})]), true);
+    await sSet(xp100FlagKey, true, true);
+    players = updated;
+  }
 
   const todayAssignRows = await sListGet(`dc:${code}:assign:${day}:`, true);
   setLoadProgress(60);
