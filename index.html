@@ -231,7 +231,7 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
 <script>
 // Bei jeder inhaltlichen Änderung an dieser Datei hochzählen — erscheint klein
 // im Ladebildschirm, damit sofort sichtbar ist, ob ein neuer Stand live ist.
-const APP_VERSION = 'Build 8';
+const APP_VERSION = 'Build 9';
 (() => { const t = document.getElementById('appVersionTag'); if(t) t.textContent = APP_VERSION; })();
 function setLoadProgress(pct){
   pct = Math.max(0, Math.min(100, pct));
@@ -2487,6 +2487,13 @@ function renderDashboard(){
 async function sendChatMessage(text){
   const meRec = getMe();
   await pushLog(`${meRec.emoji} <b>${esc(meRec.name)}</b>: ${esc(text)}`, 'chat');
+  if(otherPlayers().length > 0){
+    sendPushNotification({
+      excludePlayerId: identity.playerId,
+      title: `💬 ${meRec.name}`,
+      body: text.length > 120 ? text.slice(0, 117) + '…' : text
+    });
+  }
 }
 
 async function toggleReaction(logId, emoji){
