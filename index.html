@@ -289,9 +289,10 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
 <script>
 // Bei jeder inhaltlichen Änderung an dieser Datei hochzählen — erscheint klein
 // im Ladebildschirm, damit sofort sichtbar ist, ob ein neuer Stand live ist.
-const APP_VERSION = 'Build 28';
+const APP_VERSION = 'Build 29';
 const LOGO_URI = 'data:image/png;base64,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';
 const CHANGELOG = [
+  {v:'Build 29', items:['Kritischer Bugfix: Gruppe erstellen/beitreten mit Konto hat Daten nur lokal im Browser statt in der Cloud gespeichert — dadurch verschwanden Gruppen wieder; jetzt direkt und zuverlässig in Supabase', '"Ohne Konto fortfahren (alter Modus)"-Button aus dem Login entfernt']},
   {v:'Build 28', items:['Persönliches Passwort ist beim Erstellen/Beitreten im alten Modus jetzt komplett optional, nicht mehr Pflichtfeld']},
   {v:'Build 27', items:['Gruppe erstellen/beitreten prüft jetzt, ob der Mitgliedsdatensatz wirklich angelegt wurde, bevor die Mitgliedschaft verknüpft wird', '"Meine Gruppen" prüft vor dem Betreten, ob das Profil noch existiert, statt stillschweigend auszuloggen']},
   {v:'Build 26', items:['Bugfix: Gruppe aus „Meine Gruppen" öffnen hat auf falsche/keine Daten zugegriffen und sofort wieder ausgeloggt']},
@@ -1855,7 +1856,6 @@ function renderAuthGate(){
       <div style="flex:1; height:1px; background:var(--paper-edge);"></div>
     </div>
     <button class="btn btn-ghost" id="authGoogleBtn">🔵 Mit Google anmelden</button>
-    <button class="ob-back" id="authSkip" style="margin-top:18px;">Ohne Konto fortfahren (alter Modus)</button>
   `;
   const hint = document.getElementById('authHint');
   const emailEl = document.getElementById('authEmail');
@@ -1928,7 +1928,6 @@ function renderAuthGate(){
     const { error } = await authSignInGoogle();
     if(error){ setBusy(false); setHint('Google-Anmeldung ist für diese App noch nicht eingerichtet.', 'error'); }
   };
-  document.getElementById('authSkip').onclick = renderOnboarding;
   pwEl.addEventListener('keydown', (e) => { if(e.key === 'Enter') loginBtn.click(); });
 }
 
@@ -1970,7 +1969,7 @@ async function renderMyGroups(session){
       const row = body.querySelector(`[data-enter-group="${m.id}"]`);
       row.style.opacity = '0.5';
       const rawCode = m.code.slice(2); // "S-xxxxx" -> "xxxxx", Supabase-Zugriffe hängen hieran
-      const check = await sGet(`dc:${rawCode}:member:${m.player_id}`, true);
+      const check = await sbRowGet(rawCode, `dc:${rawCode}:member:${m.player_id}`);
       if(!check){
         showToast('Dieses Profil existiert in der Gruppe nicht mehr — Verknüpfung wird entfernt');
         await getSb().from('memberships').delete().eq('id', m.id);
@@ -2031,21 +2030,26 @@ function renderAccountGroupForm(mode, session){
   });
 }
 
+// WICHTIG: diese Funktionen laufen, BEVOR "identity" gesetzt ist — darum NIE die
+// generischen sGet/sSet-Wrapper benutzen (die hängen an isSupabase()/identity.backend
+// und würden still auf localStorage statt auf die echte Cloud-DB ausweichen).
+// Hier wird direkt mit sbRow* gegen den übergebenen Code gesprochen.
 async function createGroupWithAccount(name, groupPw, userId){
   if(!hasSupabase()){ showToast('Dafür wird eine Cloud-Verbindung gebraucht'); return; }
   const startDate = localDateStr(new Date());
   const code = genCode();
-  remoteBlobId = code;
-  await sSet(`dc:${code}:daystart`, startDate, true);
-  if(groupPw) await sSet(`dc:${code}:pwhash`, await sha256(groupPw+code), true);
+  const okDay = await sbRowSet(code, `dc:${code}:daystart`, startDate);
+  if(!okDay){ showToast('Gruppe konnte nicht angelegt werden — Verbindung prüfen und nochmal versuchen'); return; }
+  if(groupPw) await sbRowSet(code, `dc:${code}:pwhash`, await sha256(groupPw+code));
   const playerId = 'p_' + genId();
   const emoji = EMOJIS[Math.floor(Math.random()*EMOJIS.length)];
-  await sSet(`dc:${code}:member:${playerId}`, memberPayload({name, emoji}, {}), true);
+  await sbRowSet(code, `dc:${code}:member:${playerId}`, memberPayload({name, emoji}, {}));
   // Verifizieren statt blind vertrauen: erst wenn der Datensatz wirklich da ist,
   // wird die Mitgliedschaft verknüpft — sonst bleibt "Meine Gruppen" sauber.
-  const verify = await sGet(`dc:${code}:member:${playerId}`, true);
+  const verify = await sbRowGet(code, `dc:${code}:member:${playerId}`);
   if(!verify){ showToast('Gruppe konnte nicht angelegt werden — bitte nochmal versuchen'); return; }
   await upsertMembership({userId, code:'S-'+code, playerId, name, emoji});
+  remoteBlobId = code;
   identity = {code:'S-'+code, playerId, playerName:name, joinedDay:1, remote:true, backend:'supabase'};
   await sSet('my-identity', identity, false);
   await boot();
@@ -2055,26 +2059,29 @@ async function joinGroupWithAccount(codeRaw, name, groupPw, userId){
   if(!hasSupabase()){ showToast('Dafür wird eine Cloud-Verbindung gebraucht'); return false; }
   let code = codeRaw.trim();
   if(code.toUpperCase().startsWith('S-')) code = code.slice(2);
-  remoteBlobId = code;
-  const expectedHash = await sGet(`dc:${code}:pwhash`, true);
+  const expectedHash = await sbRowGet(code, `dc:${code}:pwhash`);
   if(expectedHash){
     const givenHash = groupPw ? await sha256(groupPw+code) : null;
     if(givenHash !== expectedHash) return false;
   }
-  const existing = await findExistingMemberByName(code, name);
+  const memberRows = await sbRowListWithValues(code, `dc:${code}:member:`);
+  if(!memberRows){ return false; }
+  const nameLower = name.trim().toLowerCase();
+  const existing = memberRows.find(r => r.value && r.value.name && r.value.name.trim().toLowerCase() === nameLower);
   let playerId, emoji;
   if(existing){
-    playerId = existing.playerId; emoji = existing.rec.emoji;
+    playerId = suffix(existing.key, `dc:${code}:member:`); emoji = existing.value.emoji;
   } else {
     playerId = 'p_' + genId();
     emoji = EMOJIS[Math.floor(Math.random()*EMOJIS.length)];
-    await sSet(`dc:${code}:member:${playerId}`, memberPayload({name, emoji}, {}), true);
+    await sbRowSet(code, `dc:${code}:member:${playerId}`, memberPayload({name, emoji}, {}));
   }
   // Verifizieren statt blind vertrauen: erst wenn der Datensatz wirklich da ist,
   // wird die Mitgliedschaft verknüpft — sonst bleibt "Meine Gruppen" sauber.
-  const verify = await sGet(`dc:${code}:member:${playerId}`, true);
+  const verify = await sbRowGet(code, `dc:${code}:member:${playerId}`);
   if(!verify) return false;
   await upsertMembership({userId, code:'S-'+code, playerId, name, emoji});
+  remoteBlobId = code;
   identity = {code:'S-'+code, playerId, playerName:name, joinedDay: 1, remote:true, backend:'supabase'};
   await sSet('my-identity', identity, false);
   await boot();
