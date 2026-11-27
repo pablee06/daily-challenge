@@ -167,9 +167,13 @@ main{max-width:640px; margin:0 auto; padding:0 16px;}
 .slot-machine{background:linear-gradient(180deg, #332a55, #1c1733); border-radius:18px; padding:14px; box-shadow:inset 0 2px 6px rgba(0,0,0,0.45), 0 8px 20px rgba(0,0,0,0.3);}
 .slot-window{display:flex; gap:8px; background:#0d0a1a; border-radius:10px; padding:8px; box-shadow:inset 0 0 0 3px #FACC15, inset 0 2px 8px rgba(0,0,0,0.6);}
 .slot-reel{width:64px; height:64px; overflow:hidden; background:#fff; border-radius:7px; position:relative;}
-.slot-reel::after{content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,0.18), transparent 30%, transparent 70%, rgba(0,0,0,0.18)); pointer-events:none;}
+.slot-window-3x3 .slot-reel{height:192px;}
+.slot-reel::after{content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,0.22), transparent 25%, transparent 75%, rgba(0,0,0,0.22)); pointer-events:none; z-index:2;}
 .slot-strip{display:flex; flex-direction:column; transform:translateY(0);}
-.slot-sym{width:64px; height:64px; min-height:64px; display:flex; align-items:center; justify-content:center; font-size:32px;}
+.slot-sym{width:64px; height:64px; min-height:64px; display:flex; align-items:center; justify-content:center; font-size:32px; position:relative; transition:background .2s;}
+.slot-sym.win{background:radial-gradient(circle, rgba(250,204,21,0.55), rgba(250,204,21,0.15) 70%); box-shadow:inset 0 0 0 2px #FACC15; animation:slot-win-pulse .55s ease-in-out infinite alternate; z-index:1;}
+@keyframes slot-win-pulse{ from{ filter:brightness(1); } to{ filter:brightness(1.35); } }
+.slot-paylines-hint{color:rgba(255,255,255,0.55); font-size:10.5px; text-align:center; margin-top:8px; font-weight:600; letter-spacing:0.2px;}
 
 .vote-box{margin-top:14px; padding-top:14px; border-top:1px solid var(--paper-edge);}
 .vote-row{display:flex; justify-content:space-between; font-family:'Inter',sans-serif; font-weight:600; font-size:11px; color:var(--text-dim); margin-bottom:6px;}
@@ -321,9 +325,10 @@ nav.bottom .navbadge{position:absolute; top:2px; right:14%; background:var(--dan
 <script>
 // Bei jeder inhaltlichen Änderung an dieser Datei hochzählen — erscheint klein
 // im Ladebildschirm, damit sofort sichtbar ist, ob ein neuer Stand live ist.
-const APP_VERSION = 'Build 35';
+const APP_VERSION = 'Build 36';
 const LOGO_URI = 'data:image/png;base64,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';
 const CHANGELOG = [
+  {v:'Build 36', items:['Spielautomat generalüberholt: echtes 3×3-Raster statt 3 einzelner Symbole, 5 Gewinnlinien (3 Reihen + 2 Diagonalen) mit Gold-Glühen für Treffer, neues Scatter-Symbol 🌟 das ab 3× im Raster Freispiele auslöst (kosten kein Ticket)']},
   {v:'Build 35', items:['Neuer "Mein Status"-Block im Dashboard: Joker, Streak-Rettung, Tickets, Shop-Rabatt auf einen Blick', 'Belohnungs-Logik (XP/Joker/Emoji/Rabatt) an 5 Stellen zusammengeführt statt dupliziert — weniger Risiko für Inkonsistenzen', 'Bugfix: "Gruppe verlassen" hat die Konto-Verknüpfung nicht entfernt (verwaiste Gruppe in "Meine Gruppen" möglich) und landete immer im alten Login-Modus statt zurück bei "Meine Gruppen"', 'Direkter "Konto abmelden"-Button jetzt auch in den Einstellungen innerhalb einer Gruppe, nicht nur über Umweg']},
   {v:'Build 34', items:['Spielautomat ist jetzt eine eigene Seite (neuer Tab 🎰 Automat) statt Pop-up beim Login', 'Nur noch 1 Gratis-Ticket pro Tag statt automatischem Spin — zusätzliche Tickets für 25 XP kaufbar, Tickets verfallen nicht']},
   {v:'Build 33', items:['Gratis-Spin hat jetzt echte Wahrscheinlichkeiten: jede Walze dreht unabhängig, 3 Gleiche (≈2%) = großer Gewinn, ein Paar (≈37%) = kleiner Gewinn, kein Treffer (≈61%) = kleiner Trostpreis — statt vorher immer garantiertem Treffer']},
@@ -1014,7 +1019,7 @@ async function loginOrCreateMember(code, name, personalPw){
     return {playerId: existing.playerId, rec: existing.rec, isNew:false};
   }
   const playerId = 'p_' + genId();
-  const rec = {name, emoji: EMOJIS[Math.floor(Math.random()*EMOJIS.length)], xp:100, weeklyXp:0, ownedThemes:['plain'], selectedTheme:'plain', pwHash: hash, freeJokers:1, lastLoginBonusDay:0, shopDiscountPct:0, chestLog:[], streakFreezes:1, slotTickets:0};
+  const rec = {name, emoji: EMOJIS[Math.floor(Math.random()*EMOJIS.length)], xp:100, weeklyXp:0, ownedThemes:['plain'], selectedTheme:'plain', pwHash: hash, freeJokers:1, lastLoginBonusDay:0, shopDiscountPct:0, chestLog:[], streakFreezes:1, slotTickets:0, freeSpinsPending:0};
   await sSet(`dc:${code}:member:${playerId}`, rec, true);
   return {playerId, rec, isNew:true};
 }
@@ -1442,38 +1447,76 @@ async function celebrateMilestoneIfNeeded(meRec, newStreak){
 
 const BONUS_EMOJIS = ['🦄','🐲','🦊','🐸','🦁','🐨','🐯','🦉','🐺','🦋','🐙','🦖'];
 
-/* ---------------- Gratis-Spin (täglicher Glücksspielautomat) ---------------- */
+/* ---------------- Gratis-Spin (täglicher Glücksspielautomat) ----------------
+   Echtes 3×3-Raster mit 5 Gewinnlinien (3 Reihen + 2 Diagonalen) und einem
+   Scatter-Symbol (🌟), das — egal wo im Raster — ab 3× Freispiele auslöst. */
 
 const SLOT_SYMBOLS = ['🍒','🍋','🍀','🔔','⭐','💎','🃏'];
+const SLOT_SCATTER = '🌟';
+// Symbol-Pool fürs Befüllen der Felder: normale Symbole doppelt gewichtet,
+// Scatter seltener (≈1 von 15 Feldern) — sonst würden Freispiele zu oft kommen.
+const SLOT_FIELD_POOL = [...SLOT_SYMBOLS, ...SLOT_SYMBOLS, SLOT_SCATTER];
 const SLOT_SYM_H = 64;
+const SLOT_LINE_XP = {'🍒':6, '🍋':8, '🍀':10, '🔔':12, '⭐':18, '💎':25};
+// [Reihe,Spalte] je Linie — 3 waagerechte + 2 Diagonalen
+const SLOT_PAYLINES = [
+  [[0,0],[0,1],[0,2]],
+  [[1,0],[1,1],[1,2]],
+  [[2,0],[2,1],[2,2]],
+  [[0,0],[1,1],[2,2]],
+  [[2,0],[1,1],[0,2]],
+];
 
-// Echter Zufall: jede Walze unabhängig, Belohnung ergibt sich aus dem
-// tatsächlichen Ergebnis — mit 7 Symbolen liegt die Chance auf 3 Gleiche bei
-// ca. 1/49 (≈2%), auf irgendein Paar bei ca. 37%, auf gar keinen Treffer bei ≈61%.
+function randomFieldSymbol(){ return SLOT_FIELD_POOL[Math.floor(Math.random()*SLOT_FIELD_POOL.length)]; }
+
 function rollSlotSpin(){
-  const reels = [0,1,2].map(() => SLOT_SYMBOLS[Math.floor(Math.random()*SLOT_SYMBOLS.length)]);
-  const [a,b,c] = reels;
-  let reward;
-  if(a===b && b===c){
-    if(a === '🃏') reward = {xpBonus:40, freeJoker:true, freeJokerCount:2, label:'🎰 JACKPOT! +40 XP & 2× Gratis-Joker'};
-    else if(a === '💎') reward = {xpBonus:40, label:'💎💎💎 Volltreffer! +40 XP'};
-    else if(a === '⭐') reward = {xpBonus:30, label:'⭐⭐⭐ +30 XP'};
-    else reward = {xpBonus:20, label:`${a}${a}${a} +20 XP`};
-  } else if(a===b || b===c || a===c){
-    const pairSym = a===b ? a : (b===c ? b : a);
-    if(pairSym === '🃏') reward = {freeJoker:true, label:'🃏🃏 Zwei Joker-Symbole — Gratis-Joker!'};
-    else reward = {xpBonus:10, label:`Zwei ${pairSym} — +10 XP`};
-  } else {
-    reward = {xpBonus:3, label:'Kein Treffer — kleiner Trostpreis: +3 XP'};
-  }
-  return {reels, reward};
+  // grid[reihe][spalte], 3×3 komplett unabhängig gewürfelt
+  const grid = [0,1,2].map(() => [0,1,2].map(randomFieldSymbol));
+
+  let totalXp = 0, jackpotLines = 0, freeJokerCount = 0;
+  const winLines = [];
+  SLOT_PAYLINES.forEach((line, idx) => {
+    const syms = line.map(([r,c]) => grid[r][c]);
+    if(syms[0] !== SLOT_SCATTER && syms[0]===syms[1] && syms[1]===syms[2]){
+      winLines.push(idx);
+      if(syms[0] === '🃏'){ jackpotLines++; totalXp += 40; freeJokerCount += 1; }
+      else totalXp += SLOT_LINE_XP[syms[0]] || 0;
+    }
+  });
+  const scatterCount = grid.flat().filter(s => s === SLOT_SCATTER).length;
+  const freeSpinsWon = scatterCount >= 3 ? 3 : 0;
+
+  const parts = [];
+  if(jackpotLines > 0) parts.push(`🎰 ${jackpotLines}× JACKPOT-Linie`);
+  if(totalXp > 0) parts.push(`+${totalXp} XP`);
+  if(freeJokerCount > 0) parts.push(`${freeJokerCount}× Gratis-Joker`);
+  if(freeSpinsWon > 0) parts.push(`🎉 ${freeSpinsWon} Freispiele gewonnen!`);
+  if(!parts.length) parts.push('Kein Treffer — kleiner Trostpreis: +3 XP');
+
+  const reward = {label: parts.join(' · ')};
+  if(totalXp > 0) reward.xpBonus = totalXp;
+  else if(!winLines.length) reward.xpBonus = 3; // Trostpreis, wenn gar nichts gewonnen wurde
+  if(freeJokerCount > 0){ reward.freeJoker = true; reward.freeJokerCount = freeJokerCount; }
+  if(freeSpinsWon > 0) reward.freeSpinsWon = freeSpinsWon;
+
+  return {grid, winLines, reward};
 }
 
-function buildSlotStrip(targetSymbol){
+// Baut die Walzen-Strip für EINE Spalte: viele zufällige Füll-Symbole, am Ende
+// exakt die 3 Zielsymbole (oben/mitte/unten), auf denen die Walze landen soll.
+function buildSlotColumnStrip(colTriple){
   const strip = [];
-  for(let i=0; i<22; i++) strip.push(SLOT_SYMBOLS[Math.floor(Math.random()*SLOT_SYMBOLS.length)]);
-  strip.push(targetSymbol); // landet am Ende exakt auf dem Gewinn-Symbol
+  for(let i=0; i<18; i++) strip.push(randomFieldSymbol());
+  strip.push(...colTriple);
   return strip;
+}
+
+function slotSpinButtonLabel(meRec){
+  const freeSpins = meRec.freeSpinsPending||0;
+  const tickets = meRec.slotTickets||0;
+  if(freeSpins > 0) return `🎉 Freispiel nutzen (${freeSpins} übrig)`;
+  if(tickets > 0) return '🎰 Spin! (1 Ticket)';
+  return '🎰 Keine Tickets mehr';
 }
 
 function renderSlotPage(){
@@ -1481,19 +1524,29 @@ function renderSlotPage(){
   const meRec = getMe();
   if(!meRec || !area) return;
   const tickets = meRec.slotTickets || 0;
-  const idleReels = [0,1,2].map(() => SLOT_SYMBOLS[Math.floor(Math.random()*SLOT_SYMBOLS.length)]);
+  const freeSpins = meRec.freeSpinsPending || 0;
+  const canSpin = tickets > 0 || freeSpins > 0;
+  const idleGrid = [0,1,2].map(() => [0,1,2].map(randomFieldSymbol));
+  const reelsHtml = [0,1,2].map(col => `
+    <div class="slot-reel">
+      <div class="slot-strip" id="slotPageStrip${col}" data-len="3">
+        ${[0,1,2].map(row => `<div class="slot-sym" id="slotCell_${row}_${col}">${idleGrid[row][col]}</div>`).join('')}
+      </div>
+    </div>`).join('');
   area.innerHTML = `
     <div class="section-title">Spielautomat<div class="rule"></div></div>
     <div class="card" style="text-align:center;">
-      <div style="font-weight:700; font-size:14px; margin-bottom:10px;">🎟️ Tickets: <span id="slotTicketCount">${tickets}</span></div>
-      <div class="slot-machine" style="margin:0 auto 16px;">
-        <div class="slot-window" id="slotWindowPage">
-          ${idleReels.map((s,i) => `<div class="slot-reel"><div class="slot-strip" id="slotPageStrip${i}" data-len="1">${`<div class="slot-sym">${s}</div>`}</div></div>`).join('')}
-        </div>
+      <div style="display:flex; justify-content:center; gap:18px; font-weight:700; font-size:13.5px; margin-bottom:10px;">
+        <div>🎟️ Tickets: <span id="slotTicketCount">${tickets}</span></div>
+        <div id="slotFreeSpinCount" style="${freeSpins>0?'':'display:none;'} color:#FACC15;">🎉 Freispiele: <span id="slotFreeSpinNum">${freeSpins}</span></div>
       </div>
-      <button class="btn btn-gradient" id="slotSpinPageBtn" ${tickets<=0 ? 'disabled':''}>🎰 ${tickets>0 ? 'Spin! (1 Ticket)' : 'Keine Tickets mehr'}</button>
+      <div class="slot-machine" style="margin:0 auto 10px;">
+        <div class="slot-window slot-window-3x3" id="slotWindowPage">${reelsHtml}</div>
+        <div class="slot-paylines-hint">5 Gewinnlinien: 3 Reihen + 2 Diagonalen</div>
+      </div>
+      <button class="btn btn-gradient" id="slotSpinPageBtn" ${canSpin ? '' : 'disabled'}>${slotSpinButtonLabel(meRec)}</button>
       <div id="slotPageResult" style="margin-top:14px; min-height:20px;"></div>
-      <div class="hint" style="margin-top:10px;">Jeden Tag beim Öffnen gibt's 1 Gratis-Ticket. Tickets sammeln sich an.</div>
+      <div class="hint" style="margin-top:10px;">Jeden Tag beim Öffnen gibt's 1 Gratis-Ticket. Tickets sammeln sich an. Landen 3× 🌟 irgendwo im Raster, gibt's Freispiele!</div>
     </div>
     <div class="section-title" style="margin-top:20px;">Tickets kaufen<div class="rule"></div></div>
     <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
@@ -1504,54 +1557,77 @@ function renderSlotPage(){
   const spinBtn = document.getElementById('slotSpinPageBtn');
   const resultEl = document.getElementById('slotPageResult');
   const ticketCountEl = document.getElementById('slotTicketCount');
+  const freeSpinWrapEl = document.getElementById('slotFreeSpinCount');
+  const freeSpinNumEl = document.getElementById('slotFreeSpinNum');
 
   spinBtn.onclick = async () => {
     const cur = getMe();
-    if(!cur || (cur.slotTickets||0) <= 0) return;
+    if(!cur) return;
+    const usingFreeSpin = (cur.freeSpinsPending||0) > 0;
+    if(!usingFreeSpin && (cur.slotTickets||0) <= 0) return;
     slotPageDirty = true;
     spinBtn.disabled = true;
     resultEl.textContent = '';
+    document.querySelectorAll('.slot-sym.win').forEach(el => el.classList.remove('win'));
+
     const spin = rollSlotSpin();
     const reward = spin.reward;
-    const changes = computeRewardChanges(cur, reward, {slotTickets: (cur.slotTickets||0) - 1});
+    const baseChanges = usingFreeSpin
+      ? {freeSpinsPending: (cur.freeSpinsPending||0) - 1}
+      : {slotTickets: (cur.slotTickets||0) - 1};
+    const changes = computeRewardChanges(cur, reward, baseChanges);
     changes.chestLog = appendChestHistory(cur, 'spin', reward.label);
     await sSet(`dc:${S.code}:member:${identity.playerId}`, memberPayload(cur, changes), true);
     Object.assign(cur, changes);
-    ticketCountEl.textContent = changes.slotTickets;
+    ticketCountEl.textContent = cur.slotTickets||0;
+    if((cur.freeSpinsPending||0) > 0){
+      freeSpinWrapEl.style.display = '';
+      freeSpinNumEl.textContent = cur.freeSpinsPending;
+    } else {
+      freeSpinWrapEl.style.display = 'none';
+    }
 
-    // Walzen neu befüllen und drehen lassen (gleicher Mechanismus wie im Modal)
-    [0,1,2].forEach(i => {
-      const stripEl = document.getElementById(`slotPageStrip${i}`);
-      const strip = buildSlotStrip(spin.reels[i]);
+    // Jede Spalte neu befüllen und drehen lassen — landet exakt auf den 3
+    // Zielsymbolen dieser Spalte (oben/mitte/unten aus dem gewürfelten Raster).
+    [0,1,2].forEach(col => {
+      const stripEl = document.getElementById(`slotPageStrip${col}`);
+      const colTriple = [spin.grid[0][col], spin.grid[1][col], spin.grid[2][col]];
+      const strip = buildSlotColumnStrip(colTriple);
       stripEl.dataset.len = strip.length;
       stripEl.style.transition = 'none';
       stripEl.style.transform = 'translateY(0)';
-      stripEl.innerHTML = strip.map(s => `<div class="slot-sym">${s}</div>`).join('');
+      stripEl.innerHTML = strip.map((s,i) => `<div class="slot-sym" data-row="${i-(strip.length-3)}" data-col="${col}">${s}</div>`).join('');
     });
     if(navigator.vibrate){ try{ navigator.vibrate(15); }catch(e){} }
     let maxDelay = 0;
-    [0,1,2].forEach((i) => {
-      const stripEl = document.getElementById(`slotPageStrip${i}`);
+    [0,1,2].forEach((col) => {
+      const stripEl = document.getElementById(`slotPageStrip${col}`);
       const len = parseInt(stripEl.dataset.len, 10);
-      const delay = 300*i;
-      const duration = 1300 + i*450;
+      const delay = 300*col;
+      const duration = 1300 + col*450;
       maxDelay = Math.max(maxDelay, delay+duration);
       setTimeout(() => {
-        // reflow erzwingen, damit der Übergang von "keine Transition" greift
-        void stripEl.offsetHeight;
+        void stripEl.offsetHeight; // reflow erzwingen, damit die Transition greift
         stripEl.style.transition = `transform ${duration}ms cubic-bezier(.1,.74,.22,1)`;
-        stripEl.style.transform = `translateY(-${(len-1)*SLOT_SYM_H}px)`;
+        stripEl.style.transform = `translateY(-${(len-3)*SLOT_SYM_H}px)`;
         if(navigator.vibrate){ try{ navigator.vibrate(10); }catch(e){} }
       }, delay);
     });
     setTimeout(() => {
       showConfetti();
-      if(navigator.vibrate){ try{ navigator.vibrate([20,40,60]); }catch(e){} }
+      if(navigator.vibrate){ try{ navigator.vibrate(reward.freeSpinsWon ? [25,50,25,50,70] : [20,40,60]); }catch(e){} }
+      // Gewinnende Felder hervorheben: jede Zelle mit data-row/col=0,1,2 matchen
+      spin.winLines.forEach(lineIdx => {
+        SLOT_PAYLINES[lineIdx].forEach(([r,c]) => {
+          const el = document.querySelector(`#slotPageStrip${c} [data-row="${r}"][data-col="${c}"]`);
+          if(el) el.classList.add('win');
+        });
+      });
       resultEl.innerHTML = `<div class="chest-reward-text" style="font-size:17px;">${esc(reward.label)}</div>`;
       slotPageDirty = false;
       const now = getMe();
-      spinBtn.disabled = (now.slotTickets||0) <= 0;
-      spinBtn.innerHTML = (now.slotTickets||0) > 0 ? '🎰 Spin! (1 Ticket)' : '🎰 Keine Tickets mehr';
+      spinBtn.disabled = !((now.slotTickets||0) > 0 || (now.freeSpinsPending||0) > 0);
+      spinBtn.innerHTML = slotSpinButtonLabel(now);
       updateBadges();
     }, maxDelay + 150);
   };
@@ -1566,54 +1642,6 @@ function renderSlotPage(){
     renderSlotPage();
     updateBadges();
   };
-}
-
-function showSlotModal({title, rewardLabel, reels}){
-  const overlay = document.createElement('div');
-  overlay.className = 'chest-overlay';
-  const reelsHtml = [0,1,2].map(i => {
-    const strip = buildSlotStrip(reels[i]);
-    return `<div class="slot-reel"><div class="slot-strip" id="slotStrip${i}" data-len="${strip.length}">${strip.map(s=>`<div class="slot-sym">${s}</div>`).join('')}</div></div>`;
-  }).join('');
-  overlay.innerHTML = `
-    <div class="chest-modal">
-      <div class="chest-title">${esc(title)}</div>
-      <div class="slot-machine">
-        <div class="slot-window">${reelsHtml}</div>
-      </div>
-      <button class="btn btn-gradient" id="slotSpinBtn" style="margin-top:16px;">🎰 Spin!</button>
-      <div class="chest-reward" id="slotRewardEl" style="display:none;">
-        <div class="chest-reward-text">${esc(rewardLabel)}</div>
-        <button class="btn btn-primary" id="slotCloseBtn" style="margin-top:14px;">Nice!</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-  const spinBtn = document.getElementById('slotSpinBtn');
-  spinBtn.onclick = () => {
-    spinBtn.disabled = true;
-    spinBtn.textContent = 'Dreht…';
-    if(navigator.vibrate){ try{ navigator.vibrate(15); }catch(e){} }
-    let maxDelay = 0;
-    [0,1,2].forEach((i) => {
-      const stripEl = document.getElementById(`slotStrip${i}`);
-      const len = parseInt(stripEl.dataset.len, 10);
-      const delay = 300*i;
-      const duration = 1300 + i*450;
-      maxDelay = Math.max(maxDelay, delay+duration);
-      setTimeout(() => {
-        stripEl.style.transition = `transform ${duration}ms cubic-bezier(.1,.74,.22,1)`;
-        stripEl.style.transform = `translateY(-${(len-1)*SLOT_SYM_H}px)`;
-        if(navigator.vibrate){ try{ navigator.vibrate(10); }catch(e){} }
-      }, delay);
-    });
-    setTimeout(() => {
-      showConfetti();
-      if(navigator.vibrate){ try{ navigator.vibrate([20,40,60]); }catch(e){} }
-      document.getElementById('slotRewardEl').style.display = 'block';
-      spinBtn.style.display = 'none';
-    }, maxDelay + 150);
-  };
-  document.getElementById('slotCloseBtn').onclick = () => overlay.remove();
 }
 
 function rollSilverChest(){
@@ -1658,6 +1686,7 @@ function computeRewardChanges(meRec, reward, baseChanges){
   if(reward.newEmoji) changes.emoji = reward.newEmoji;
   if(reward.shopDiscountPct) changes.shopDiscountPct = reward.shopDiscountPct;
   if(reward.freeJoker) changes.freeJokers = (meRec.freeJokers||0) + (reward.freeJokerCount||1);
+  if(reward.freeSpinsWon) changes.freeSpinsPending = (changes.freeSpinsPending ?? meRec.freeSpinsPending ?? 0) + reward.freeSpinsWon;
   return changes;
 }
 
@@ -2829,6 +2858,7 @@ function memberPayload(rec, changes){
     streakFreezes: rec.streakFreezes ?? 1,
     photo: rec.photo || null,
     slotTickets: rec.slotTickets ?? 0,
+    freeSpinsPending: rec.freeSpinsPending ?? 0,
     ...changes
   };
 }
@@ -2873,7 +2903,7 @@ const TOUR_STEPS = [
   {tab:'review', target:'#tourReview', title:'Anonym prüfen', text:'Hier prüfst du anonym eingereichte Aufgaben anderer: Schwierigkeit &amp; Punkte festlegen oder mit Begründung ablehnen.'},
   {tab:'vote', target:'#tourVote', title:'Abstimmen', text:'Stimm ab, ob jemand seine Tagesaufgabe wirklich erledigt hat. Mehrheit entscheidet, bei Gleichstand zählt sie als nicht erfüllt.'},
   {tab:'ranking', target:'#tourRanking', title:'Rangliste', text:'Gesamt- oder Wochenwertung, Levels, Erfolgs-Abzeichen und wöchentliche Titel (👑 Champion, 🐌 Schlusslicht).'},
-  {tab:'slot', target:null, title:'Spielautomat', text:'Jeden Tag gibt&#39;s 1 Gratis-Ticket beim Öffnen der App. Im Automat-Tab einlösen für einen echten Dreh mit echten Gewinnchancen — oder sich mit XP weitere Tickets kaufen.'},
+  {tab:'slot', target:null, title:'Spielautomat', text:'3×3-Raster mit 5 Gewinnlinien (3 Reihen + 2 Diagonalen). Jeden Tag gibt&#39;s 1 Gratis-Ticket, weitere für XP kaufbar. Landen 3× 🌟 irgendwo im Raster, gibt&#39;s Freispiele gratis obendrauf!'},
 ];
 let tourIndex = 0;
 let tourResizeHandler = null;
